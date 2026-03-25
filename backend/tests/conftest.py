@@ -28,6 +28,8 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
     # ASGITransport does not run the ASGI lifespan, so we set state directly.
     app.state.pg_pool = mock_pool
     app.state.redis = mock_redis
+    app.state.pg_ready = True
+    app.state.redis_ready = True
 
     with (
         patch("app.lifespan.asyncpg.create_pool", return_value=mock_pool),
@@ -39,6 +41,6 @@ async def async_client() -> AsyncGenerator[AsyncClient, None]:
             yield client
 
     # Clean up state attributes so tests don't bleed into each other.
-    for attr in ("pg_pool", "redis"):
+    for attr in ("pg_pool", "redis", "pg_ready", "redis_ready"):
         if hasattr(app.state, attr):
             delattr(app.state, attr)

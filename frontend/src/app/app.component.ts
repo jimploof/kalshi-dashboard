@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 
-import { MarketsService } from './core/services/markets.service';
+import { ReadinessService } from './core/services/readiness.service';
 
 @Component({
   selector: 'app-root',
@@ -15,6 +15,6 @@ import { MarketsService } from './core/services/markets.service';
 export class AppComponent {
   readonly title = 'kalshi-dashboard';
 
-  private readonly markets = inject(MarketsService);
-  readonly marketStatus = toSignal(this.markets.getStatus());
+  private readonly readiness = inject(ReadinessService);
+  readonly readinessStatus = toSignal(this.readiness.getReadiness());
 }

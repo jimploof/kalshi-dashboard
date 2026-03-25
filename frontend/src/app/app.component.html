@@ -4,22 +4,24 @@
     <span class="workstation-status">scaffold</span>
   </header>
   <main class="workstation-main">
-    @if (marketStatus(); as status) {
+    @if (readinessStatus(); as r) {
       <section class="status-panel">
-        <h2 class="status-panel__heading">Backend Status</h2>
+        <h2 class="status-panel__heading">
+          Backend Readiness
+          <span [class]="r.ready ? 'badge badge--ok' : 'badge badge--err'">
+            {{ r.ready ? 'ready' : 'not ready' }}
+          </span>
+        </h2>
         <dl class="status-panel__grid">
-          <dt>API</dt>
-          <dd>{{ status.status }}</dd>
           <dt>PostgreSQL</dt>
-          <dd [class]="status.connections.postgres ? 'conn-ok' : 'conn-err'">
-            {{ status.connections.postgres ? 'connected' : 'unavailable' }}
+          <dd [class]="r.checks.postgres ? 'conn-ok' : 'conn-err'">
+            {{ r.checks.postgres ? 'connected' : 'unavailable' }}
           </dd>
           <dt>Redis</dt>
-          <dd [class]="status.connections.redis ? 'conn-ok' : 'conn-err'">
-            {{ status.connections.redis ? 'connected' : 'unavailable' }}
+          <dd [class]="r.checks.redis ? 'conn-ok' : 'conn-err'">
+            {{ r.checks.redis ? 'connected' : 'unavailable' }}
           </dd>
         </dl>
-        <p class="status-panel__msg">{{ status.message }}</p>
       </section>
     } @else {
       <p class="status-loading">Connecting to backend…</p>
