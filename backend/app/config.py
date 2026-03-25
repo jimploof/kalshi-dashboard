@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:4200", "http://127.0.0.1:4200"]
     log_level: str = "INFO"
 
+    @property
+    def asyncpg_dsn(self) -> str:
+        """Return a bare postgresql:// DSN suitable for asyncpg (strips SQLAlchemy driver prefix)."""
+        return self.database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
 
 @lru_cache
 def get_settings() -> Settings:

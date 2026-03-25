@@ -1,5 +1,8 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+
+import { MarketsService } from './core/services/markets.service';
 
 @Component({
   selector: 'app-root',
@@ -11,4 +14,7 @@ import { RouterOutlet } from '@angular/router';
 })
 export class AppComponent {
   readonly title = 'kalshi-dashboard';
+
+  private readonly markets = inject(MarketsService);
+  readonly marketStatus = toSignal(this.markets.getStatus());
 }

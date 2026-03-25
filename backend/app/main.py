@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.lifespan import lifespan
 from app.routers import health, markets, orders, replay, sessions
 
 settings = get_settings()
@@ -14,6 +15,7 @@ app = FastAPI(
     title="Kalshi Dashboard API",
     version="0.1.0",
     description="Backend for the Kalshi trading workstation.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

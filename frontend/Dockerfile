@@ -13,6 +13,10 @@ COPY --chown=node:node package.json ./
 # Install deps as node user so the anonymous volume is owned by node too
 RUN npm install
 
+# Pre-create .angular so Docker initialises the anonymous volume as node-owned.
+# Without this, Docker creates the volume as an empty root-owned directory.
+RUN mkdir -p .angular
+
 COPY --chown=node:node . .
 
 EXPOSE 4200

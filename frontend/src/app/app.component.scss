@@ -35,4 +35,70 @@
   flex: 1;
   overflow: hidden;
   display: flex;
+  padding: 16px;
+}
+
+// Placeholder status panel — remove when real UI is built
+.status-panel {
+  background: #16161d;
+  border: 1px solid #2a2a35;
+  border-radius: 4px;
+  padding: 16px 20px;
+  min-width: 280px;
+  align-self: flex-start;
+
+  &__heading {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #7eb6ff;
+    margin-bottom: 12px;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 16px;
+    row-gap: 6px;
+    font-size: 12px;
+    margin-bottom: 12px;
+
+    dt {
+      color: #888;
+    }
+
+    dd {
+      color: #e0e0e0;
+    }
+  }
+
+  &__msg {
+    font-size: 11px;
+    color: #555;
+    line-height: 1.4;
+  }
+}
+
+.conn-ok  { color: #4caf7d; }
+.conn-err { color: #e05c5c; }
+
+.status-loading {
+  font-size: 12px;
+  color: #555;
+  padding: 16px;
+}
+
+
+.workstation-status {
+  font-size: 11px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.workstation-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
 }
