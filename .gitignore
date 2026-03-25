@@ -1,0 +1,27 @@
+# Node
+node_modules/
+/dist
+/build
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Mac
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Env
+.env
+.env.local
+
+# Misc
+npm-debug.log*
+coverage/
