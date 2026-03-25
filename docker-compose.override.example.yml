@@ -1,0 +1,13 @@
+# Copy to docker-compose.override.yml to enable developer conveniences.
+# docker-compose.override.yml is gitignored and never committed.
+#
+# Example: expose postgres and redis ports for local GUI tools
+# (TablePlus, pgAdmin, RedisInsight, etc.)
+
+# services:
+#   postgres:
+#     ports:
+#       - "5432:5432"
+#   redis:
+#     ports:
+#       - "6379:6379"

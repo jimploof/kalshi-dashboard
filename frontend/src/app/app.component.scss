@@ -1,0 +1,38 @@
+.workstation-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #0d0d0f;
+  color: #e0e0e0;
+}
+
+.workstation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 40px;
+  background: #16161d;
+  border-bottom: 1px solid #2a2a35;
+  flex-shrink: 0;
+}
+
+.workstation-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #7eb6ff;
+}
+
+.workstation-status {
+  font-size: 11px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.workstation-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+}

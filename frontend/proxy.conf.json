@@ -1,0 +1,14 @@
+{
+  "/api": {
+    "target": "http://backend:8000",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "info"
+  },
+  "/ws": {
+    "target": "ws://backend:8000",
+    "secure": false,
+    "ws": true,
+    "logLevel": "info"
+  }
+}
