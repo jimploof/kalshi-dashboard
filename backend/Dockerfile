@@ -5,11 +5,17 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-# Copy all source so hatchling can build the package
-COPY . .
+# Copy only what hatchling needs to resolve + install deps first.
+# This layer is cached until pyproject.toml or app/ source changes.
+COPY pyproject.toml ./
+COPY app/ ./app/
 
-# Install the project and all its dependencies into the system Python
-RUN uv pip install --system --no-cache .
+# Install runtime + dev dependencies into the system Python.
+# '[dev]' makes pytest, ruff, etc. available for `docker compose exec backend pytest`.
+RUN uv pip install --system --no-cache ".[dev]"
+
+# Copy the rest (tests/, .env.example, etc.) after the install layer.
+COPY . .
 
 EXPOSE 8000
 

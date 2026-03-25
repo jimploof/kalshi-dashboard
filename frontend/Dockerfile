@@ -1,13 +1,19 @@
 FROM node:24-slim
 
+# Run as the built-in 'node' user (uid 1000) so that any files the container
+# writes into the bind-mounted workspace appear as the host user, not root.
+# In WSL2 Ubuntu the default user is also uid 1000, so ownership matches.
 WORKDIR /app
+RUN chown node:node /app
 
-COPY package.json ./
+USER node
 
-# npm install resolves and installs all deps (no lockfile required for initial build)
+COPY --chown=node:node package.json ./
+
+# Install deps as node user so the anonymous volume is owned by node too
 RUN npm install
 
-COPY . .
+COPY --chown=node:node . .
 
 EXPOSE 4200
 

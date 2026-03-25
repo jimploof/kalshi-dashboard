@@ -91,16 +91,18 @@ docker compose down -v
 ### Running Backend Tests
 
 ```bash
-docker compose exec backend uv run pytest
+docker compose exec backend pytest
 ```
 
 ### Generating a package lockfile (after first build)
 
-To commit a reproducible `package-lock.json` for the frontend:
+To commit a reproducible `package-lock.json` for the frontend, run `npm install`
+locally (not inside the container) so the lockfile is written to the host filesystem
+with your user's ownership:
 
 ```bash
-docker compose exec frontend npm install
-# Then copy it out or let the volume mount surface it to your host
+cd frontend && npm install
+git add package-lock.json && git commit -m 'chore: add frontend package-lock.json'
 ```
 
 ## Troubleshooting
