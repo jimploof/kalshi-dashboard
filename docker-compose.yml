@@ -22,6 +22,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - ./secrets/kalshi/kalshi.key:/run/secrets/kalshi/kalshi.key:ro      
     env_file:
       - path: ./backend/.env
         required: false
