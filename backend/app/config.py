@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:4200", "http://127.0.0.1:4200"]
     log_level: str = "INFO"
 
+    # Kalshi REST integration
+    kalshi_api_base_url: str = "https://demo-api.kalshi.co/trade-api/v2"
+    kalshi_env: str = "demo"
+    kalshi_api_key_id: str | None = None
+    # Path to the RSA private key .key file downloaded from Kalshi account settings.
+    # Leave unset (or set to empty string) to disable Kalshi integration.
+    kalshi_private_key_path: str | None = None
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:

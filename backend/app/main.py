@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.lifespan import lifespan
-from app.routers import health, markets, orders, ready, replay, sessions
+from app.routers import health, kalshi, markets, orders, ready, replay, sessions
 
 settings = get_settings()
 
@@ -28,6 +28,7 @@ app.add_middleware(
 
 app.include_router(health.router, prefix="/api")
 app.include_router(ready.router, prefix="/api")
+app.include_router(kalshi.router, prefix="/api")
 app.include_router(markets.router, prefix="/api/markets", tags=["markets"])
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
 app.include_router(replay.router, prefix="/api/replay", tags=["replay"])

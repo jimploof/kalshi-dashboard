@@ -9,6 +9,7 @@ dependencies = [
     "asyncpg>=0.30.0",
     "redis[asyncio]>=5.2.0",
     "httpx>=0.28.0",
+    "cryptography>=44.0.0",
 ]
 
 [build-system]
