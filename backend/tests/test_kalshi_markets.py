@@ -25,20 +25,17 @@ from app.main import app
 from app.services.kalshi.rest_client import KalshiRestClient
 
 # Fields that must NOT appear anywhere in a market object (raw upstream leakage).
+# Price/volume/interest fields ARE now part of MarketDTO (by design) and must not
+# be listed here.  Fields excluded from the browse DTO remain forbidden.
 _FORBIDDEN_MARKET_FIELDS = {
-    "yes_bid_dollars",
-    "yes_ask_dollars",
-    "no_bid_dollars",
-    "no_ask_dollars",
-    "last_price_dollars",
-    "volume_fp",
-    "volume_24h_fp",
-    "open_interest_fp",
-    "notional_value_dollars",
-    "rules_primary",
-    "rules_secondary",
-    "price_ranges",
-    "mve_selected_legs",
+    "no_bid_dollars",           # not in browse DTO (yes-side sufficient for quick eval)
+    "no_ask_dollars",           # not in browse DTO
+    "notional_value_dollars",   # detail-view only (MarketDetailDTO)
+    "rules_primary",            # detail-view only
+    "rules_secondary",          # detail-view only
+    "price_ranges",             # complex structure, not in any browse DTO
+    "mve_selected_legs",        # complex multivariate structure, not in browse DTO
+    "liquidity_dollars",        # deprecated by Kalshi; always "0.0000"
 }
 
 # Fields that must always be present on a successful response wrapper.
@@ -49,19 +46,32 @@ _SAMPLE_UPSTREAM = {
         {
             "ticker": "KXBTC-24MAR-T25000",
             "event_ticker": "KXBTC-24MAR",
+            "market_type": "binary",
+            "yes_sub_title": "Above $25,000",
+            "no_sub_title": "At or below $25,000",
             "title": "Will Bitcoin be above $25,000?",
             "subtitle": "Bitcoin vs USD",
             "status": "open",
+            "open_time": "2024-02-01T00:00:00Z",
             "close_time": "2024-03-01T00:00:00Z",
-            # Raw fields that must not leak through:
             "yes_bid_dollars": "0.5600",
             "yes_ask_dollars": "0.5800",
+            "last_price_dollars": "0.5700",
             "volume_fp": "10.00",
+            "volume_24h_fp": "3.00",
+            "open_interest_fp": "15.00",
+            # Fields that must not leak into browse DTO:
+            "no_bid_dollars": "0.4200",
+            "no_ask_dollars": "0.4400",
             "rules_primary": "Settlement rules...",
+            "notional_value_dollars": "1.0000",
         },
         {
             "ticker": "KXBTC-24MAR-T30000",
             "event_ticker": "KXBTC-24MAR",
+            "market_type": "binary",
+            "yes_sub_title": None,
+            "no_sub_title": None,
             "title": "Will Bitcoin be above $30,000?",
             "subtitle": None,
             "status": "open",
@@ -124,7 +134,7 @@ async def test_kalshi_markets_success_shape(async_client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_kalshi_markets_dto_fields_present(async_client: AsyncClient) -> None:
-    """Market DTOs contain exactly the expected discovery fields."""
+    """Market DTOs contain the expected browse fields."""
     mock = _mock_client()
     app.dependency_overrides[get_kalshi_client] = lambda: mock
 
@@ -136,10 +146,54 @@ async def test_kalshi_markets_dto_fields_present(async_client: AsyncClient) -> N
     market = response.json()["markets"][0]
     assert market["ticker"] == "KXBTC-24MAR-T25000"
     assert market["event_ticker"] == "KXBTC-24MAR"
+    assert market["market_type"] == "binary"
+    assert market["yes_sub_title"] == "Above $25,000"
+    assert market["no_sub_title"] == "At or below $25,000"
     assert market["title"] == "Will Bitcoin be above $25,000?"
     assert market["subtitle"] == "Bitcoin vs USD"
     assert market["status"] == "open"
+    assert market["open_time"] is not None
     assert market["close_time"] is not None
+
+
+@pytest.mark.asyncio
+async def test_kalshi_markets_enriched_price_fields(async_client: AsyncClient) -> None:
+    """Price, volume, and open-interest fields are correctly mapped into MarketDTO."""
+    mock = _mock_client()
+    app.dependency_overrides[get_kalshi_client] = lambda: mock
+
+    try:
+        response = await async_client.get("/api/kalshi/markets")
+    finally:
+        app.dependency_overrides.pop(get_kalshi_client, None)
+
+    market = response.json()["markets"][0]
+    assert market["yes_bid_dollars"] == "0.5600"
+    assert market["yes_ask_dollars"] == "0.5800"
+    assert market["last_price_dollars"] == "0.5700"
+    assert market["volume_fp"] == "10.00"
+    assert market["volume_24h_fp"] == "3.00"
+    assert market["open_interest_fp"] == "15.00"
+
+
+@pytest.mark.asyncio
+async def test_kalshi_markets_missing_price_fields_default_none(async_client: AsyncClient) -> None:
+    """Price/volume fields default to None when upstream omits them."""
+    mock = _mock_client()
+    app.dependency_overrides[get_kalshi_client] = lambda: mock
+
+    try:
+        response = await async_client.get("/api/kalshi/markets")
+    finally:
+        app.dependency_overrides.pop(get_kalshi_client, None)
+
+    # Second market in fixture has no price/volume fields
+    market = response.json()["markets"][1]
+    assert market["ticker"] == "KXBTC-24MAR-T30000"
+    assert market["yes_bid_dollars"] is None
+    assert market["last_price_dollars"] is None
+    assert market["volume_fp"] is None
+    assert market["open_interest_fp"] is None
 
 
 @pytest.mark.asyncio

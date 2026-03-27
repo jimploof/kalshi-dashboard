@@ -31,12 +31,14 @@ _FORBIDDEN_EVENT_FIELDS = {
     "last_updated_ts",
 }
 _FORBIDDEN_MARKET_FIELDS = {
-    "yes_bid_dollars",
-    "yes_ask_dollars",
-    "volume_fp",
-    "rules_primary",
-    "mve_selected_legs",
-    "notional_value_dollars",
+    "no_bid_dollars",           # not in browse DTO
+    "no_ask_dollars",           # not in browse DTO
+    "notional_value_dollars",   # detail-only (MarketDetailDTO)
+    "rules_primary",            # detail-only
+    "rules_secondary",          # detail-only
+    "price_ranges",             # complex, not in any browse DTO
+    "mve_selected_legs",        # complex, not in browse DTO
+    "liquidity_dollars",        # deprecated by Kalshi; always "0.0000"
 }
 
 # ---------------------------------------------------------------------------
@@ -46,13 +48,25 @@ _FORBIDDEN_MARKET_FIELDS = {
 _SAMPLE_MARKET = {
     "ticker": "KXBTC-24MAR-T25000",
     "event_ticker": "KXBTC-24MAR",
+    "market_type": "binary",
+    "yes_sub_title": "Above $25k",
+    "no_sub_title": "At or below $25k",
     "title": "Will Bitcoin exceed $25k?",
     "subtitle": "Bitcoin threshold",
     "status": "open",
+    "open_time": "2024-02-01T00:00:00Z",
     "close_time": "2024-03-01T00:00:00Z",
     "yes_bid_dollars": "0.5600",
+    "yes_ask_dollars": "0.5800",
+    "last_price_dollars": "0.5700",
     "volume_fp": "10.00",
+    "volume_24h_fp": "3.00",
+    "open_interest_fp": "15.00",
+    # Fields that must not appear in browse DTO:
+    "no_bid_dollars": "0.4200",
+    "no_ask_dollars": "0.4400",
     "rules_primary": "Settlement rules...",
+    "mve_selected_legs": [],
 }
 
 _SAMPLE_EVENT_RESPONSE = {

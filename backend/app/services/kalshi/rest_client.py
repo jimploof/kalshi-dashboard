@@ -4,7 +4,15 @@ Thin async REST client for authenticated Kalshi API requests.
 This module owns:
   - private key loading
   - auth header construction (timestamp + signature)
-  - single-method GET /portfolio/balance probe call
+  - all Kalshi REST calls used by backend routes
+
+Public methods:
+  get_balance()   — GET /portfolio/balance (authenticated probe)
+  get_markets()   — GET /markets           (market list / discovery)
+  get_market()    — GET /markets/{ticker}  (single market detail)
+  get_events()    — GET /events            (event list / discovery)
+  get_event()     — GET /events/{ticker}   (single event detail)
+  get_series()    — GET /series            (series list / navigation)
 
 All Kalshi REST access in the backend routes through this client.
 """
@@ -162,6 +170,30 @@ class KalshiRestClient:
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
 
+    async def get_market(self, ticker: str) -> dict:
+        """
+        GET /markets/{ticker} — single market detail by ticker.
+
+        Returns the raw Kalshi response dict with key:
+          market (object with the full documented market schema)
+
+        Auth headers are sent when credentials are configured; the Kalshi
+        /markets endpoint is publicly accessible without auth.
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
+            httpx.RequestError:    on network/timeout errors.
+        """
+        endpoint = f"/markets/{ticker}"
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                self._api_base_url + endpoint,
+                headers=headers,
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]
+
     async def get_events(
         self,
         *,
@@ -170,6 +202,8 @@ class KalshiRestClient:
         limit: int = 200,
         cursor: str | None = None,
         with_nested_markets: bool = False,
+        min_close_ts: int | None = None,
+        min_updated_ts: int | None = None,
     ) -> dict:
         """
         GET /events — public event discovery endpoint.
@@ -185,6 +219,12 @@ class KalshiRestClient:
         When with_nested_markets=True each event object also contains a
         'markets' list — this is the recommended way to load an event and
         its related markets in a single round-trip.
+
+        Documented optional filters (confirmed from docs.kalshi.com/api-reference/events/get-events):
+          series_ticker  — filter by series
+          status         — unopened | open | closed | settled
+          min_close_ts   — Unix seconds; events with at least one market closing after this time
+          min_updated_ts — Unix seconds; events updated after this time (efficient polling)
 
         Auth headers are sent when credentials are configured; the Kalshi
         /events endpoint is public and works without auth.
@@ -203,6 +243,10 @@ class KalshiRestClient:
             params["cursor"] = cursor
         if with_nested_markets:
             params["with_nested_markets"] = "true"
+        if min_close_ts is not None:
+            params["min_close_ts"] = min_close_ts
+        if min_updated_ts is not None:
+            params["min_updated_ts"] = min_updated_ts
 
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
 

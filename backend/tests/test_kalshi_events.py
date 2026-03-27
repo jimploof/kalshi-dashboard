@@ -31,21 +31,16 @@ from app.main import app
 from app.services.kalshi.rest_client import KalshiRestClient
 
 # Raw fields that must NOT appear on any EventDTO or nested MarketDTO.
+# Price/volume/interest fields ARE now part of MarketDTO and must not be listed here.
 _FORBIDDEN_MARKET_FIELDS = {
-    "yes_bid_dollars",
-    "yes_ask_dollars",
-    "no_bid_dollars",
-    "no_ask_dollars",
-    "last_price_dollars",
-    "volume_fp",
-    "volume_24h_fp",
-    "open_interest_fp",
-    "rules_primary",
-    "rules_secondary",
-    "price_ranges",
-    "mve_selected_legs",
-    "notional_value_dollars",
-    "liquidity_dollars",
+    "no_bid_dollars",           # not in browse DTO
+    "no_ask_dollars",           # not in browse DTO
+    "notional_value_dollars",   # detail-only (MarketDetailDTO)
+    "rules_primary",            # detail-only
+    "rules_secondary",          # detail-only
+    "price_ranges",             # complex, not in any browse DTO
+    "mve_selected_legs",        # complex, not in browse DTO
+    "liquidity_dollars",        # deprecated by Kalshi; always "0.0000"
 }
 _FORBIDDEN_EVENT_FIELDS = {
     "collateral_return_type",
@@ -65,14 +60,23 @@ _REQUIRED_EVENT_FIELDS = {"event_ticker", "markets"}
 _SAMPLE_MARKET = {
     "ticker": "KXBTC-24MAR-T25000",
     "event_ticker": "KXBTC-24MAR",
+    "market_type": "binary",
+    "yes_sub_title": "Above $25,000",
+    "no_sub_title": "At or below $25,000",
     "title": "Will Bitcoin be above $25,000?",
     "subtitle": "Bitcoin vs USD",
     "status": "open",
+    "open_time": "2024-02-01T00:00:00Z",
     "close_time": "2024-03-01T00:00:00Z",
-    # Raw fields that must be stripped:
     "yes_bid_dollars": "0.5600",
     "yes_ask_dollars": "0.5800",
+    "last_price_dollars": "0.5700",
     "volume_fp": "10.00",
+    "volume_24h_fp": "3.00",
+    "open_interest_fp": "15.00",
+    # Fields that must not leak into browse DTO:
+    "no_bid_dollars": "0.4200",
+    "no_ask_dollars": "0.4400",
     "rules_primary": "Settlement rules...",
     "mve_selected_legs": [],
 }
@@ -339,12 +343,14 @@ async def test_kalshi_events_default_params_forwarded(async_client: AsyncClient)
         limit=100,
         cursor=None,
         with_nested_markets=False,
+        min_close_ts=None,
+        min_updated_ts=None,
     )
 
 
 @pytest.mark.asyncio
 async def test_kalshi_events_explicit_params_forwarded(async_client: AsyncClient) -> None:
-    """Explicit query params are forwarded correctly to the client method."""
+    """Explicit base query params are forwarded correctly to the client method."""
     mock = _mock_client(result=_SAMPLE_UPSTREAM_EMPTY)
     app.dependency_overrides[get_kalshi_client] = lambda: mock
 
@@ -361,6 +367,52 @@ async def test_kalshi_events_explicit_params_forwarded(async_client: AsyncClient
         limit=50,
         cursor="abc",
         with_nested_markets=True,
+        min_close_ts=None,
+        min_updated_ts=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_kalshi_events_min_close_ts_forwarded(async_client: AsyncClient) -> None:
+    """min_close_ts query param is forwarded as int to the client method."""
+    mock = _mock_client(result=_SAMPLE_UPSTREAM_EMPTY)
+    app.dependency_overrides[get_kalshi_client] = lambda: mock
+
+    try:
+        await async_client.get("/api/kalshi/events?min_close_ts=1711929600")
+    finally:
+        app.dependency_overrides.pop(get_kalshi_client, None)
+
+    mock.get_events.assert_called_once_with(
+        series_ticker=None,
+        status=None,
+        limit=100,
+        cursor=None,
+        with_nested_markets=False,
+        min_close_ts=1711929600,
+        min_updated_ts=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_kalshi_events_min_updated_ts_forwarded(async_client: AsyncClient) -> None:
+    """min_updated_ts query param is forwarded as int to the client method."""
+    mock = _mock_client(result=_SAMPLE_UPSTREAM_EMPTY)
+    app.dependency_overrides[get_kalshi_client] = lambda: mock
+
+    try:
+        await async_client.get("/api/kalshi/events?min_updated_ts=1711843200")
+    finally:
+        app.dependency_overrides.pop(get_kalshi_client, None)
+
+    mock.get_events.assert_called_once_with(
+        series_ticker=None,
+        status=None,
+        limit=100,
+        cursor=None,
+        with_nested_markets=False,
+        min_close_ts=None,
+        min_updated_ts=1711843200,
     )
 
 
