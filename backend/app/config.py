@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # Leave unset (or set to empty string) to disable Kalshi integration.
     kalshi_private_key_path: str | None = None
 
+    # Background hydration intervals (seconds)
+    # Series don't change often — 15 min default.
+    # Events + markets change more frequently — 5 min default.
+    hydration_interval_series_seconds: int = 900
+    hydration_interval_events_seconds: int = 300
+
     @field_validator("database_url")
     @classmethod
     def validate_database_url(cls, v: str) -> str:

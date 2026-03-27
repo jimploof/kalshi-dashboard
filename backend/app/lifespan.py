@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -7,6 +8,8 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI
 
 from app.config import get_settings
+from app.services.hydration.hydration_service import HydrationService
+from app.services.kalshi.rest_client import KalshiRestClient
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +52,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await app.state.pg_pool.close()
         raise
 
+    logger.info("Starting background hydration service …")
+    kalshi_client = KalshiRestClient(settings)
+    hydration_service = HydrationService(
+        client=kalshi_client,
+        pool=app.state.pg_pool,
+        redis=app.state.redis,
+    )
+    app.state.hydration_service = hydration_service
+    app.state.hydration_task = asyncio.create_task(
+        hydration_service.start_loop(
+            interval_series_s=settings.hydration_interval_series_seconds,
+            interval_events_s=settings.hydration_interval_events_seconds,
+        ),
+        name="hydration-main",
+    )
+    logger.info("Hydration task started.")
+
     logger.info("Startup complete — all dependencies ready.")
     yield
 
     logger.info("Shutting down — closing connections…")
     app.state.pg_ready = False
     app.state.redis_ready = False
+
+    hydration_task: asyncio.Task = app.state.hydration_task
+    hydration_task.cancel()
+    try:
+        await hydration_task
+    except asyncio.CancelledError:
+        pass
+    logger.info("Hydration task stopped.")
+
     await app.state.pg_pool.close()
     await app.state.redis.aclose()
     logger.info("Shutdown complete.")
