@@ -122,3 +122,182 @@ class KalshiRestClient:
             )
             response.raise_for_status()
             return response.json()  # type: ignore[no-any-return]
+
+    async def get_markets(
+        self,
+        *,
+        status: str | None = None,
+        limit: int = 100,
+        cursor: str | None = None,
+    ) -> dict:
+        """
+        GET /markets — public market discovery endpoint.
+
+        Returns the raw Kalshi response dict with keys:
+          markets (list of market objects), cursor (str, pagination)
+
+        Auth headers are included when credentials are configured; the Kalshi
+        /markets endpoint is public and works without auth, but providing auth
+        avoids unauthenticated rate-limit buckets.
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
+            httpx.RequestError:    on network/timeout errors.
+        """
+        endpoint = "/markets"
+        params: dict[str, str | int] = {"limit": limit}
+        if status is not None:
+            params["status"] = status
+        if cursor is not None:
+            params["cursor"] = cursor
+
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                self._api_base_url + endpoint,
+                headers=headers,
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]
+
+    async def get_events(
+        self,
+        *,
+        series_ticker: str | None = None,
+        status: str | None = None,
+        limit: int = 200,
+        cursor: str | None = None,
+        with_nested_markets: bool = False,
+    ) -> dict:
+        """
+        GET /events — public event discovery endpoint.
+
+        An event represents a real-world occurrence containing one or more
+        markets (e.g. "Will Bitcoin close above $30k on March 1?").  Events
+        group related markets and carry the category field used for
+        domain-level navigation (crypto, politics, sports, etc.).
+
+        Returns the raw Kalshi response dict with keys:
+          events (list of event objects), cursor (str, pagination)
+
+        When with_nested_markets=True each event object also contains a
+        'markets' list — this is the recommended way to load an event and
+        its related markets in a single round-trip.
+
+        Auth headers are sent when credentials are configured; the Kalshi
+        /events endpoint is public and works without auth.
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
+            httpx.RequestError:    on network/timeout errors.
+        """
+        endpoint = "/events"
+        params: dict[str, str | int | bool] = {"limit": limit}
+        if series_ticker is not None:
+            params["series_ticker"] = series_ticker
+        if status is not None:
+            params["status"] = status
+        if cursor is not None:
+            params["cursor"] = cursor
+        if with_nested_markets:
+            params["with_nested_markets"] = "true"
+
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                self._api_base_url + endpoint,
+                headers=headers,
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]
+
+    async def get_event(
+        self,
+        event_ticker: str,
+        *,
+        with_nested_markets: bool = True,
+    ) -> dict:
+        """
+        GET /events/{event_ticker} — single event lookup by ticker.
+
+        Returns the raw Kalshi response dict with keys:
+          event (object), markets (list, deprecated top-level field)
+
+        By default requests with_nested_markets=true so that the event object
+        itself contains the markets list, matching the canonical usage pattern
+        for the workstation "related markets" panel.
+
+        The upstream also returns a deprecated top-level ``markets`` field;
+        we use only ``event.markets`` (when with_nested_markets=True) in the
+        normalization layer and ignore the top-level duplicate.
+
+        Auth headers are sent when credentials are configured; the endpoint is
+        publicly accessible without auth.
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
+            httpx.RequestError:    on network/timeout errors.
+        """
+        endpoint = f"/events/{event_ticker}"
+        params: dict[str, str] = {}
+        if with_nested_markets:
+            params["with_nested_markets"] = "true"
+
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                self._api_base_url + endpoint,
+                headers=headers,
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]
+
+    async def get_series(
+        self,
+        *,
+        category: str | None = None,
+        tags: str | None = None,
+    ) -> dict:
+        """
+        GET /series — public series list endpoint.
+
+        A series is a template for recurring events (e.g. "Monthly Jobs Report",
+        "Daily Bitcoin Price").  Series carry category and tags, making them the
+        primary surface for category-level navigation in the workstation.
+
+        Returns the raw Kalshi response dict with key:
+          series (list of series objects)
+
+        Note: this endpoint has no pagination cursor in the documented response.
+        All matching series are returned in a single response.
+
+        Auth headers are sent when credentials are configured; the endpoint is
+        publicly accessible without auth.
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
+            httpx.RequestError:    on network/timeout errors.
+        """
+        endpoint = "/series"
+        params: dict[str, str] = {}
+        if category is not None:
+            params["category"] = category
+        if tags is not None:
+            params["tags"] = tags
+
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                self._api_base_url + endpoint,
+                headers=headers,
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]

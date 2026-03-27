@@ -33,6 +33,7 @@ At this phase, Copilot should focus on:
 - OpenAPI/type-generation foundation
 - documentation scaffolding
 - minimal health/test endpoints only
+- minimal Kalshi connectivity skeletons only when explicitly requested
 
 At this phase, Copilot must **not**:
 - implement Kalshi trading logic
@@ -82,9 +83,9 @@ The frontend must never call Kalshi directly under any circumstances.
 ---
 
 ### 2. WebSockets are the primary live transport
-The system is **WebSocket-first** for live market state.
+The system is **WebSocket-first** for live market and account state.
 
-Use WebSockets whenever the public Kalshi API supports them for:
+Use WebSockets whenever the documented Kalshi API supports them for:
 - market ticker updates
 - public trades
 - order book updates
@@ -95,9 +96,27 @@ Use WebSockets whenever the public Kalshi API supports them for:
 
 Do not replace live WebSocket flows with REST polling shortcuts.
 
+The default architectural assumption is:
+- live state comes from WebSockets
+- REST does not drive live views when an appropriate documented stream exists
+
 ---
 
-### 3. REST is reserved and must be minimized
+### 3. Use a single backend-owned live ingestion spine
+The backend should treat the Kalshi WebSocket connection as the primary live-ingestion spine.
+
+Prefer:
+- one backend-owned authenticated Kalshi WebSocket connection
+- centralized subscription management
+- backend fan-out to internal state/services
+- frontend consumption of backend-owned normalized state
+
+Do not design the frontend as a direct exchange client.
+Do not create multiple competing exchange-connection patterns unless clearly justified.
+
+---
+
+### 4. REST is reserved and must be minimized
 REST must only be used when necessary, such as:
 - event and market discovery
 - bootstrap hydration
@@ -105,6 +124,8 @@ REST must only be used when necessary, such as:
 - queue position lookup
 - account limits lookup
 - market metadata lookup
+- chart/candlestick/history retrieval
+- exchange/account connectivity verification
 - order placement
 - order amendment
 - order decrease
@@ -113,9 +134,17 @@ REST must only be used when necessary, such as:
 
 Do not use REST as the primary live transport for market data.
 
+Treat REST as:
+- seed
+- repair
+- verify
+- write
+
+Do not treat REST as the default source of truth for rapidly changing live state.
+
 ---
 
-### 4. Protect write capacity
+### 5. Protect write capacity
 Kalshi REST usage must be treated as a constrained resource.
 
 The system must preserve write capacity for execution-critical actions:
@@ -130,7 +159,7 @@ Optional reads must never starve trading writes.
 
 ---
 
-### 5. Separate read and write scheduling
+### 6. Separate read and write scheduling
 The backend must maintain separate REST scheduling and rate-limit protection for:
 - read requests
 - write requests
@@ -143,11 +172,29 @@ The scheduler must support:
 - deferred or dropped low-priority reads
 - structured logging of scheduler decisions
 
-No Kalshi request may bypass the scheduler.
+No Kalshi REST request may bypass the scheduler.
+
+Do not allow ad hoc feature code to call Kalshi REST directly without going through the approved backend transport/scheduling boundary.
 
 ---
 
-### 6. Queue position is pull-based
+### 7. Reconciliation is first-class
+The backend must treat reconciliation as a first-class architectural concern.
+
+Use WebSockets as the primary source for live exchange/account updates, but support controlled reconciliation for:
+- cold start
+- reconnect recovery
+- write confirmation fallback
+- detected state drift
+- targeted repair of local state
+
+Do not continuously poll REST as a substitute for proper reconciliation design.
+
+Reconciliation should be targeted, sparse, and intentional.
+
+---
+
+### 8. Queue position is pull-based
 Queue position must be treated as REST-only unless public Kalshi documentation explicitly changes.
 
 Do not design queue position as a pushed live WebSocket field.
@@ -163,7 +210,7 @@ Do not aggressively poll queue position for every order.
 
 ---
 
-### 7. Persist raw events before deep derivation
+### 9. Persist raw events before deep derivation
 Raw inbound exchange events must be preserved.
 
 Persist raw WebSocket events before or alongside deeper derived processing.
@@ -184,7 +231,77 @@ Derived state must be rebuildable from raw event history plus documented recover
 
 ---
 
-### 8. Domain-agnostic core
+### 10. Order book state is snapshot + delta
+Order book handling must be modeled as:
+- snapshot initialization
+- incremental delta application
+- controlled resync/recovery when local state is suspected stale or damaged
+
+Do not model order book state as periodic polling.
+Do not discard snapshot/delta semantics in favor of simplistic overwrite logic.
+
+Order book update application should be isolated behind a dedicated reducer/service boundary.
+
+---
+
+### 11. Subscription scope must be deliberate
+Do not subscribe to everything by default unless there is a very strong and documented reason.
+
+Prefer:
+- scoped subscriptions
+- dynamic watchlists
+- explicit add/remove/update subscription behavior
+- resource-aware subscription expansion and contraction
+
+The system must support focusing live subscriptions on:
+- user-selected markets
+- visible markets
+- currently traded markets
+- related markets when needed
+
+Avoid indiscriminate subscribe-all strategies.
+
+---
+
+### 12. Normalize external payloads into internal models
+Do not leak raw Kalshi payload shapes directly through the application.
+
+Use thin transport/client layers to receive external payloads, then normalize into internal models/DTOs for:
+- frontend-facing APIs
+- persistence
+- replay
+- analytics
+- orchestration
+
+The system should be resilient to upstream payload-format evolution.
+Do not couple broad application code directly to raw exchange field layouts.
+
+---
+
+### 13. Separate transport concerns cleanly
+The backend should maintain explicit service boundaries for transport concerns, such as:
+- Kalshi REST client
+- Kalshi WebSocket client
+- normalization/mapping layer
+- scheduler/rate-limit layer
+- reconciliation layer
+
+Do not collapse all exchange interaction into one giant utility file.
+Do not mix raw transport mechanics with business orchestration.
+
+---
+
+### 14. SDKs must not become the core abstraction
+Do not make any vendor SDK the architectural center of the system.
+
+If an SDK is used at all, it must remain optional and replaceable.
+Prefer backend-owned transport boundaries and internal normalized models.
+
+The repo architecture must not assume long-term dependence on a specific SDK implementation.
+
+---
+
+### 15. Domain-agnostic core
 The platform must be generalized enough to support:
 - basketball
 - football
@@ -210,7 +327,7 @@ Sports-specific or asset-specific context may exist as optional display modules,
 
 ---
 
-### 9. Supported public-API build only
+### 16. Supported public-API build only
 Do not depend on undocumented or reverse-engineered Kalshi APIs.
 Do not build required features around private consumer-app endpoints.
 Do not assume public developer API support for sports play-by-play or live sports telemetry unless explicitly documented.
@@ -247,6 +364,8 @@ The supported build must rely only on documented public Kalshi APIs and WebSocke
 - modular monolith preferred over microservices
 - backend-owned realtime state
 - replay-ready from day one
+- WebSocket-first for live exchange state
+- REST-minimal and centrally budgeted
 
 Do not introduce alternate frameworks, runtimes, or infrastructure without explicit approval.
 
@@ -373,6 +492,7 @@ Do not invent scattered ad hoc environment variable patterns.
 - The UI must be a dense workstation-style application, not a marketing-style layout.
 - The frontend must consume normalized backend state.
 - All exchange-originating live state must come from the backend.
+- The frontend must not depend on raw Kalshi transport payloads as a stable contract.
 - Components must be designed for:
   - main chart stack
   - ladder
@@ -419,6 +539,7 @@ Do not invent scattered ad hoc environment variable patterns.
   - stream ingestion
   - order orchestration
   - REST scheduling
+  - reconciliation
   - persistence
   - replay
   - frontend-facing APIs
@@ -487,6 +608,8 @@ The following may be considered later, but are not assumed to be core V1 require
   - contingent order orchestration
   - replay derivation
   - recovery flows
+  - reconciliation flows
+  - snapshot/delta reducers
 
 ---
 
@@ -517,9 +640,11 @@ The following may be considered later, but are not assumed to be core V1 require
 - untyped function signatures
 - direct route definitions on `app`
 - Pydantic v1 syntax such as `.dict()` or `.parse_obj()`
-- backend logic that bypasses the REST scheduler for Kalshi calls
+- backend logic that bypasses the REST scheduler for Kalshi REST calls
 - undocumented assumptions about Kalshi exchange behavior
 - permissive CORS defaults without explicit configuration
+- giant all-in-one exchange utility modules
+- leaking raw vendor payloads as the stable internal application contract
 
 ### General
 - `any` TypeScript type
@@ -533,6 +658,7 @@ The following may be considered later, but are not assumed to be core V1 require
 - private or reverse-engineered API dependencies
 - using `localhost` for container-to-container communication
 - inventing extra infrastructure or product scope during the scaffold phase
+- subscribe-everything-by-default live-feed strategies without clear justification
 
 ---
 
@@ -544,6 +670,8 @@ The following may be considered later, but are not assumed to be core V1 require
 - Use deterministic recovery flows rather than ad hoc refresh logic.
 - Optional reads may be dropped or deferred under pressure.
 - Execution-critical writes must be protected.
+- Reconnect flows should support targeted state repair rather than blanket polling.
+- Live state recovery should preserve architectural preference for WebSocket-first operation.
 
 ---
 
@@ -562,3 +690,9 @@ When generating code for this repo:
 10. do not introduce new frameworks, infra, or patterns without clear justification
 11. keep local Docker, proxy, and CORS behavior compatible with localhost-based browser testing
 12. respect the current scaffold phase and do not jump ahead into business logic or speculative features
+13. prefer scoped subscriptions over subscribe-all behavior
+14. treat REST as seed/repair/verify/write, not as the default live-state transport
+15. protect write capacity and do not allow optional reads to erode it
+16. keep vendor SDK usage optional and replaceable
+17. normalize external payloads before broad application use
+18. keep transport, scheduling, reconciliation, and orchestration concerns separated

@@ -4,6 +4,9 @@
 !.env.example
 !.env.*.example
 
+# Secrets
+/secrets/
+
 # Node / frontend
 node_modules/
 dist/
