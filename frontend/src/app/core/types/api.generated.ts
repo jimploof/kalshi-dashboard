@@ -258,12 +258,30 @@ export interface paths {
          * @description Return the series list from cache, optionally filtered by category.
          *
          *     The full series list is cached in Redis for 15 minutes.  Filtering and
-         *     sorting happen in-process on the cached data — no extra Kalshi call.
+         *     sorting happen in-process on the cached data — no Kalshi call on cache hit.
          *
-         *     Use the series ticker from results as the series_ticker query param on
-         *     GET /api/catalog/events to list all events for that series.
+         *     Pass include_volume=true to get volume data. This is fetched from the
+         *     documented bulk GET /series endpoint and cached in Redis, so category loads
+         *     remain a single upstream request instead of N per-series requests.
          */
         get: operations["get_series_api_catalog_series_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/catalog/event-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Event Cards */
+        get: operations["get_event_cards_api_catalog_event_cards_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -377,6 +395,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** CatalogEventCardsResponse */
+        CatalogEventCardsResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "upstream_failure";
+            /** Cards */
+            cards?: components["schemas"]["EventCardSummaryDTO"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Total */
+            total: number;
+            /** Snapshot Id */
+            snapshot_id: string;
+            /**
+             * Snapshot Built At
+             * Format: date-time
+             */
+            snapshot_built_at: string;
+            /** Stale */
+            stale: boolean;
+        };
         /** CatalogEventDetailResponse */
         CatalogEventDetailResponse: {
             /**
@@ -441,6 +482,60 @@ export interface components {
             postgres: boolean;
             /** Redis */
             redis: boolean;
+        };
+        /** EventCardMarketSummaryDTO */
+        EventCardMarketSummaryDTO: {
+            /** Ticker */
+            ticker: string;
+            /** Event Ticker */
+            event_ticker?: string | null;
+            /** Market Type */
+            market_type?: string | null;
+            /** Yes Sub Title */
+            yes_sub_title?: string | null;
+            /** No Sub Title */
+            no_sub_title?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Close Time */
+            close_time?: string | null;
+            /** Yes Bid Dollars */
+            yes_bid_dollars?: string | null;
+            /** Yes Ask Dollars */
+            yes_ask_dollars?: string | null;
+            /** Last Price Dollars */
+            last_price_dollars?: string | null;
+            /** Volume Fp */
+            volume_fp: string;
+            /** Open Interest Fp */
+            open_interest_fp: string;
+        };
+        /** EventCardSummaryDTO */
+        EventCardSummaryDTO: {
+            /** Event Ticker */
+            event_ticker: string;
+            /** Series Ticker */
+            series_ticker?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Sub Title */
+            sub_title?: string | null;
+            /** Mutually Exclusive */
+            mutually_exclusive?: boolean | null;
+            /** Last Updated Ts */
+            last_updated_ts?: string | null;
+            /** Market Count */
+            market_count: number;
+            /** Nearest Close Time */
+            nearest_close_time?: string | null;
+            /** Total Volume Fp */
+            total_volume_fp: string;
+            /** Total Open Interest Fp */
+            total_open_interest_fp: string;
+            /** Top Markets */
+            top_markets?: components["schemas"]["EventCardMarketSummaryDTO"][];
         };
         /**
          * EventDTO
@@ -622,8 +717,8 @@ export interface components {
          *     needed to render a full market inspection pane or inform order entry.
          *
          *     Fields confirmed from docs.kalshi.com/api-reference/market/get-market.
-         *     The ``liquidity_dollars`` field is explicitly omitted: the Kalshi docs
-         *     state it is deprecated and will always return "0.0000".
+         *     Some documented upstream fields are intentionally omitted from this
+         *     normalized DTO when they are not currently needed by the product surface.
          */
         MarketDetailDTO: {
             /** Ticker */
@@ -725,7 +820,7 @@ export interface components {
             tags: string[];
             /** Frequency */
             frequency?: string | null;
-            /** Volume — total contracts traded across all events in this series */
+            /** Volume */
             volume?: number | null;
         };
         /** ValidationError */
@@ -928,6 +1023,8 @@ export interface operations {
                 category?: string | null;
                 /** @description Filter by tags (comma-separated) */
                 tags?: string | null;
+                /** @description When true, request documented series volume_fp data from Kalshi */
+                include_volume?: boolean;
             };
             header?: never;
             path?: never;
@@ -1012,9 +1109,11 @@ export interface operations {
                 /** @description Filter by category (case-insensitive). E.g. 'Sports', 'Crypto'. */
                 category?: string | null;
                 /** @description Field to sort by. */
-                sort_by?: "ticker" | "title" | "category" | "frequency";
+                sort_by?: "ticker" | "title" | "category" | "frequency" | "volume";
                 /** @description Sort direction. */
                 sort_order?: "asc" | "desc";
+                /** @description Enrich each series with its total traded volume. Result is cached in Redis (2-min TTL) so sort changes after initial load are instant. */
+                include_volume?: boolean;
             };
             header?: never;
             path?: never;
@@ -1029,6 +1128,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogSeriesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_event_cards_api_catalog_event_cards_get: {
+        parameters: {
+            query: {
+                /** @description Required category filter for globally-correct event card browsing. */
+                category: string;
+                /** @description Optional secondary series filter applied after category filtering. */
+                series_ticker?: string | null;
+                /** @description Global backend sort key for event cards. */
+                sort_by?: "total_volume" | "total_open_interest" | "nearest_close_time" | "title";
+                /** @description Global backend sort direction. */
+                sort_order?: "asc" | "desc";
+                /** @description Number of event cards to return per page. */
+                limit?: number;
+                /** @description Opaque pagination cursor returned by the previous event-cards response. */
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogEventCardsResponse"];
                 };
             };
             /** @description Validation Error */

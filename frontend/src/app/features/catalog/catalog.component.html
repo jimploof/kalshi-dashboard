@@ -7,20 +7,11 @@
         <a role="button" (click)="state.resetToRoot()">Catalog</a>
       </li>
       @if (state.selectedCategory()) {
-        <li [class]="'breadcrumb-item' + (currentView() === 'series' ? ' active' : '')">
-          @if (currentView() !== 'series') {
+        <li [class]="'breadcrumb-item' + (currentView() === 'event-cards' ? ' active' : '')">
+          @if (currentView() !== 'event-cards') {
             <a role="button" (click)="state.resetToCategory()">{{ state.selectedCategory() }}</a>
           } @else {
             {{ state.selectedCategory() }}
-          }
-        </li>
-      }
-      @if (state.selectedSeriesTicker()) {
-        <li [class]="'breadcrumb-item' + (currentView() === 'events' ? ' active' : '')">
-          @if (currentView() !== 'events') {
-            <a role="button" (click)="state.resetToSeries()">{{ state.selectedSeriesTicker() }}</a>
-          } @else {
-            {{ state.selectedSeriesTicker() }}
           }
         </li>
       }
@@ -40,53 +31,48 @@
         </div>
       }
 
-      @case ('series') {
-        <!-- Search / sort toolbar -->
+      @case ('event-cards') {
+        <!-- Sort toolbar -->
         <div class="series-toolbar card mb-3">
           <div class="card-body">
             <div class="d-flex align-items-center gap-3">
-              <div class="flex-grow-1">
-                <input
-                  type="text"
-                  class="form-control form-control-sm"
-                  placeholder="Search by title, ticker, or tag…"
-                  [value]="seriesSearch()"
-                  (input)="seriesSearch.set($any($event.target).value)"
-                  aria-label="Search series"
-                />
-              </div>
               <div class="d-flex align-items-center gap-2">
                 <span class="series-toolbar__label">Sort</span>
                 <select
                   class="form-select form-select-sm series-toolbar__select"
-                  (change)="sortKey.set($any($event.target).value)"
-                  aria-label="Sort series"
+                  (change)="setSortKey($any($event.target).value)"
+                  aria-label="Sort events"
                 >
-                  @for (opt of sortOptions; track opt.value) {
-                    <option [value]="opt.value" [selected]="sortKey() === opt.value">{{ opt.label }}</option>
+                  @for (opt of sortOptions; track opt.key) {
+                    <option [value]="opt.key" [selected]="sortKey() === opt.key">{{ opt.label }}</option>
                   }
                 </select>
               </div>
-              @if (!seriesLoading() && seriesSearch()) {
-                <span class="series-toolbar__count">{{ displaySeries().length }}/{{ series().length }}</span>
+              @if (stale()) {
+                <span class="badge series-toolbar__stale" title="Snapshot may be slightly outdated">Refreshing…</span>
+              }
+              @if (!cardsLoading() && total() > 0) {
+                <span class="series-toolbar__count">{{ cards().length }}/{{ total() }}</span>
               }
             </div>
           </div>
         </div>
 
-        <app-series-list
-          [series]="displaySeries()"
-          [loading]="seriesLoading()"
-          (seriesSelected)="onSeriesSelected($event)"
+        <app-event-card-list
+          [cards]="cards()"
+          [loading]="cardsLoading()"
+          (cardSelected)="onEventCardSelected($event)"
         />
-      }
 
-      @case ('events') {
-        <app-event-list
-          [events]="events()"
-          [loading]="eventsLoading()"
-          (eventSelected)="onEventSelected($event)"
-        />
+        @if (nextCursor() && !cardsLoading()) {
+          <div class="d-flex justify-content-center mt-3 mb-2">
+            <button
+              class="btn btn-sm btn-outline-secondary"
+              type="button"
+              (click)="loadMore()"
+            >Load more</button>
+          </div>
+        }
       }
 
       @case ('markets') {

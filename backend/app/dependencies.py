@@ -31,7 +31,8 @@ def get_kalshi_client(request: Request, settings: SettingsDep) -> KalshiRestClie
     module-level state.  The constructor only reads a file from disk.
     """
     rate_limiter: RateLimiter | None = getattr(request.app.state, "rate_limiter", None)
-    return KalshiRestClient(settings, rate_limiter=rate_limiter)
+    debug_metrics = getattr(request.app.state, "debug_metrics", None)
+    return KalshiRestClient(settings, rate_limiter=rate_limiter, debug_metrics=debug_metrics)
 
 
 DbDep = Annotated[asyncpg.Pool, Depends(get_db)]

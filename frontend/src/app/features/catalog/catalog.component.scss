@@ -57,4 +57,11 @@
     color: #6272a4;
     white-space: nowrap;
   }
+
+  &__stale {
+    font-size: 10px;
+    background: rgba(255, 184, 108, 0.15);
+    color: #ffb86c;
+    border: 1px solid rgba(255, 184, 108, 0.3);
+  }
 }

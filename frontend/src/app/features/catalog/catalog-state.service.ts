@@ -4,23 +4,20 @@ import { Injectable, signal } from '@angular/core';
  * Catalog drill-down state — shared between SideNavComponent (category
  * selection) and CatalogComponent (data loading + breadcrumb).
  *
+ * Navigation flow:
+ *   welcome → category selected → event-cards view
+ *                                → event selected → markets view (modal exit)
+ *
  * All state is held in writable Signals.  Mutation methods cascade resets
  * downward so the view always reflects a consistent drill-down position.
  */
 @Injectable({ providedIn: 'root' })
 export class CatalogStateService {
-  readonly selectedCategory      = signal<string | null>(null);
-  readonly selectedSeriesTicker  = signal<string | null>(null);
-  readonly selectedEventTicker   = signal<string | null>(null);
+  readonly selectedCategory     = signal<string | null>(null);
+  readonly selectedEventTicker  = signal<string | null>(null);
 
   selectCategory(category: string): void {
     this.selectedCategory.set(category);
-    this.selectedSeriesTicker.set(null);
-    this.selectedEventTicker.set(null);
-  }
-
-  selectSeries(ticker: string): void {
-    this.selectedSeriesTicker.set(ticker);
     this.selectedEventTicker.set(null);
   }
 
@@ -30,16 +27,10 @@ export class CatalogStateService {
 
   resetToRoot(): void {
     this.selectedCategory.set(null);
-    this.selectedSeriesTicker.set(null);
     this.selectedEventTicker.set(null);
   }
 
   resetToCategory(): void {
-    this.selectedSeriesTicker.set(null);
-    this.selectedEventTicker.set(null);
-  }
-
-  resetToSeries(): void {
     this.selectedEventTicker.set(null);
   }
 }

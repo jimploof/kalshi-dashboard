@@ -18,7 +18,9 @@ All Kalshi REST access in the backend routes through this client.
 """
 
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 import httpx
@@ -29,19 +31,28 @@ from app.config import Settings
 from app.services.kalshi.rate_limiter import RateLimiter
 from app.services.kalshi.signing import current_timestamp_ms, sign_request
 
+if TYPE_CHECKING:
+    from app.services.debug_metrics import DebugMetrics
+
 logger = logging.getLogger(__name__)
 
 
 class KalshiRestClient:
     """Authenticated Kalshi REST client (read-only probe scope for this slice)."""
 
-    def __init__(self, settings: Settings, rate_limiter: RateLimiter | None = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        rate_limiter: RateLimiter | None = None,
+        debug_metrics: "DebugMetrics | None" = None,
+    ) -> None:
         self._api_base_url: str = settings.kalshi_api_base_url
         self._api_key_id: str | None = settings.kalshi_api_key_id
         self._private_key: RSAPrivateKey | None = self._load_key(
             settings.kalshi_private_key_path
         )
         self._rate_limiter = rate_limiter
+        self._debug_metrics = debug_metrics
 
     # ------------------------------------------------------------------
     # Configuration check
@@ -54,6 +65,32 @@ class KalshiRestClient:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    async def _tracked_get(
+        self,
+        endpoint: str,
+        headers: dict,
+        params: dict | None = None,
+    ) -> dict:
+        """Make a GET request and record timing in debug metrics if enabled."""
+        record = self._debug_metrics.start_kalshi_call(endpoint) if self._debug_metrics else None
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    self._api_base_url + endpoint,
+                    headers=headers,
+                    params=params or {},
+                )
+                if record is not None:
+                    record.status_code = response.status_code
+                    record.finished_at = datetime.now(timezone.utc)
+                response.raise_for_status()
+                return response.json()  # type: ignore[no-any-return]
+        except Exception as exc:
+            if record is not None:
+                record.error = str(exc)
+                record.finished_at = datetime.now(timezone.utc)
+            raise
 
     @staticmethod
     def _load_key(path: str | None) -> RSAPrivateKey | None:
@@ -127,13 +164,7 @@ class KalshiRestClient:
             await self._rate_limiter.acquire()
         endpoint = "/portfolio/balance"
         headers = self._auth_headers("GET", endpoint)
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                self._api_base_url + endpoint,
-                headers=headers,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+        return await self._tracked_get(endpoint, headers)
 
     async def get_markets(
         self,
@@ -166,15 +197,7 @@ class KalshiRestClient:
             params["cursor"] = cursor
 
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                self._api_base_url + endpoint,
-                headers=headers,
-                params=params,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+        return await self._tracked_get(endpoint, headers, params)
 
     async def get_market(self, ticker: str) -> dict:
         """
@@ -194,13 +217,7 @@ class KalshiRestClient:
             await self._rate_limiter.acquire()
         endpoint = f"/markets/{ticker}"
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                self._api_base_url + endpoint,
-                headers=headers,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+        return await self._tracked_get(endpoint, headers)
 
     async def get_events(
         self,
@@ -259,15 +276,7 @@ class KalshiRestClient:
             params["min_updated_ts"] = min_updated_ts
 
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                self._api_base_url + endpoint,
-                headers=headers,
-                params=params,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+        return await self._tracked_get(endpoint, headers, params)
 
     async def get_event(
         self,
@@ -304,15 +313,7 @@ class KalshiRestClient:
             params["with_nested_markets"] = "true"
 
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                self._api_base_url + endpoint,
-                headers=headers,
-                params=params,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+        return await self._tracked_get(endpoint, headers, params)
 
     async def get_series(
         self,
@@ -353,15 +354,7 @@ class KalshiRestClient:
             params["include_volume"] = "true"
 
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                self._api_base_url + endpoint,
-                headers=headers,
-                params=params,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+        return await self._tracked_get(endpoint, headers, params)
 
     async def get_single_series(self, ticker: str, *, include_volume: bool = False) -> dict:
         """
@@ -381,11 +374,4 @@ class KalshiRestClient:
         if include_volume:
             params["include_volume"] = "true"
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                self._api_base_url + endpoint,
-                headers=headers,
-                params=params,
-            )
-            response.raise_for_status()
-            return response.json()  # type: ignore[no-any-return]
+        return await self._tracked_get(endpoint, headers, params)

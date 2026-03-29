@@ -1,0 +1,193 @@
+<div class="dbg-backdrop" (click)="close()">
+  <div class="dbg-modal" (click)="$event.stopPropagation()">
+
+    <div class="dbg-modal__header">
+      <span class="dbg-modal__title">DEBUG PANEL</span>
+      <button class="dbg-modal__close" (click)="close()">✕</button>
+    </div>
+
+    @if (debug.status(); as s) {
+      <!-- ── Current Snapshot Build ─────────────────────── -->
+      <section class="dbg-section">
+        <div class="dbg-section__heading">Snapshot Build
+          @if (s.event_card_refresh_in_progress) {
+            <span class="dbg-badge dbg-badge--active">REFRESHING</span>
+          }
+        </div>
+
+        @if (s.snapshot_metrics; as m) {
+          <div class="dbg-grid">
+            <span class="dbg-grid__label">Status</span>
+            <span class="dbg-grid__value">
+              @if (m.in_progress) {
+                <span class="dbg-badge dbg-badge--active">IN PROGRESS</span>
+              } @else if (m.error) {
+                <span class="dbg-badge dbg-badge--err">FAILED</span>
+              } @else {
+                <span class="dbg-badge dbg-badge--ok">COMPLETE</span>
+              }
+            </span>
+            <span class="dbg-grid__label">Started</span>
+            <span class="dbg-grid__value">{{ formatTs(m.started_at) }}</span>
+            <span class="dbg-grid__label">Elapsed</span>
+            <span class="dbg-grid__value">{{ formatMs(m.elapsed_seconds * 1000) }}</span>
+            <span class="dbg-grid__label">Pages fetched</span>
+            <span class="dbg-grid__value">{{ m.pages_fetched }}</span>
+            <span class="dbg-grid__label">Events processed</span>
+            <span class="dbg-grid__value">{{ m.events_processed }}</span>
+            <span class="dbg-grid__label">Markets processed</span>
+            <span class="dbg-grid__value">{{ m.markets_processed }}</span>
+            @if (m.error) {
+              <span class="dbg-grid__label">Error</span>
+              <span class="dbg-grid__value dbg-grid__value--err">{{ m.error }}</span>
+            }
+          </div>
+        } @else {
+          <p class="dbg-empty">No snapshot build recorded yet.</p>
+        }
+      </section>
+
+      <!-- ── Cache Lookups ─────────────────────────────── -->
+      <section class="dbg-section">
+        <div class="dbg-section__heading">Recent Cache Lookups</div>
+        @if (s.recent_cache_lookups.length > 0) {
+          <div class="dbg-table-wrap">
+            <table class="dbg-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Result</th>
+                  <th>Age</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (rec of s.recent_cache_lookups; track trackByCacheLookup($index, rec)) {
+                  <tr>
+                    <td>{{ formatTs(rec.timestamp) }}</td>
+                    <td>
+                      @if (rec.hit) {
+                        <span class="dbg-badge dbg-badge--ok">HIT</span>
+                      } @else {
+                        <span class="dbg-badge dbg-badge--miss">MISS</span>
+                      }
+                    </td>
+                    <td>{{ formatAge(rec.snapshot_age_seconds) }}</td>
+                    <td>
+                      @if (rec.was_discarded) {
+                        <span class="dbg-badge dbg-badge--err">DISCARDED</span>
+                      } @else if (rec.was_stale) {
+                        <span class="dbg-badge dbg-badge--warn">STALE</span>
+                      } @else if (rec.hit) {
+                        <span class="dbg-badge dbg-badge--ok">FRESH</span>
+                      } @else {
+                        <span>—</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="dbg-empty">No cache lookups recorded yet.</p>
+        }
+      </section>
+
+      <!-- ── Recent Kalshi API Calls ───────────────────── -->
+      <section class="dbg-section">
+        <div class="dbg-section__heading">Recent Kalshi API Calls</div>
+        @if (s.recent_kalshi_calls.length > 0) {
+          <div class="dbg-table-wrap">
+            <table class="dbg-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Endpoint</th>
+                  <th>Elapsed</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (call of s.recent_kalshi_calls; track trackByEndpoint($index, call)) {
+                  <tr [class.dbg-table__row--err]="call.error !== null">
+                    <td>{{ formatTs(call.started_at) }}</td>
+                    <td class="dbg-table__endpoint">{{ call.endpoint }}</td>
+                    <td>{{ formatMs(call.elapsed_ms) }}</td>
+                    <td>
+                      @if (call.error) {
+                        <span class="dbg-badge dbg-badge--err">ERR</span>
+                      } @else {
+                        <span [class.dbg-badge]="true"
+                              [class.dbg-badge--ok]="call.status_code === 200"
+                              [class.dbg-badge--warn]="call.status_code !== 200 && call.status_code !== null">
+                          {{ call.status_code ?? '…' }}
+                        </span>
+                      }
+                    </td>
+                  </tr>
+                  @if (call.error) {
+                    <tr class="dbg-table__row--err-detail">
+                      <td colspan="4">{{ call.error }}</td>
+                    </tr>
+                  }
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="dbg-empty">No Kalshi API calls recorded yet.</p>
+        }
+      </section>
+
+      <!-- ── Build History ─────────────────────────────── -->
+      @if (s.snapshot_builds.length > 1) {
+        <section class="dbg-section">
+          <div class="dbg-section__heading">Build History</div>
+          <div class="dbg-table-wrap">
+            <table class="dbg-table">
+              <thead>
+                <tr>
+                  <th>Started</th>
+                  <th>Elapsed</th>
+                  <th>Pages</th>
+                  <th>Events</th>
+                  <th>Markets</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (build of s.snapshot_builds; track trackByBuild($index, build)) {
+                  <tr>
+                    <td>{{ formatTs(build.started_at) }}</td>
+                    <td>{{ formatMs(build.elapsed_seconds * 1000) }}</td>
+                    <td>{{ build.pages_fetched }}</td>
+                    <td>{{ build.events_processed }}</td>
+                    <td>{{ build.markets_processed }}</td>
+                    <td>
+                      @if (build.in_progress) {
+                        <span class="dbg-badge dbg-badge--active">…</span>
+                      } @else if (build.error) {
+                        <span class="dbg-badge dbg-badge--err">FAIL</span>
+                      } @else {
+                        <span class="dbg-badge dbg-badge--ok">OK</span>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+
+      <div class="dbg-footer">
+        <span class="dbg-footer__ts">Server time: {{ formatTs(s.server_time_utc) }}</span>
+        <span class="dbg-footer__interval">polling 2s</span>
+      </div>
+    } @else {
+      <div class="dbg-loading">Fetching debug status…</div>
+    }
+
+  </div>
+</div>

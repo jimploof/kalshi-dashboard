@@ -19,11 +19,13 @@ Navigation flow:
                 → /catalog/markets/KXNBA-2026-03-28-MIA (full detail)
 """
 
+import asyncio
 import logging
+from datetime import timezone
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -35,10 +37,30 @@ from app.routers.kalshi import (
     _map_market,
     _map_market_detail,
 )
+from app.services.catalog.event_card_cache import (
+    current_utc_time,
+    get_event_card_snapshot,
+    is_snapshot_stale,
+    set_event_card_snapshot,
+    should_discard_snapshot,
+)
+from app.services.catalog.event_card_cursor import (
+    CursorDecodeError,
+    EventCardCursorContext,
+    decode_cursor,
+    encode_cursor,
+    validate_cursor_context,
+)
+from app.services.catalog.event_card_models import (
+    CatalogEventCardsResponse,
+    EventCardSortBy,
+    SortOrder,
+)
+from app.services.catalog.event_card_page import filter_cards, page_cards, sort_cards
+from app.services.catalog.event_card_snapshot import build_event_card_snapshot
 from app.services.catalog.series_cache import (
     get_cache_ttl,
     get_series_cached,
-    invalidate_series_cache,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +106,26 @@ class CatalogEventDetailResponse(BaseModel):
 class CatalogMarketDetailResponse(BaseModel):
     status: Literal["success", "not_found", "upstream_failure"]
     market: MarketDetailDTO | None = None
+
+
+async def _refresh_event_card_snapshot(app: Request, redis: RedisDep, client: KalshiClientDep) -> None:
+    app.app.state.event_card_refresh_in_progress = True
+    try:
+        debug_metrics = getattr(app.app.state, "debug_metrics", None)
+        snapshot = await build_event_card_snapshot(client, debug_metrics=debug_metrics)
+        await set_event_card_snapshot(redis, snapshot)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Background event-card snapshot refresh failed: %s", exc)
+    finally:
+        app.app.state.event_card_refresh_in_progress = False
+        app.app.state.event_card_refresh_task = None
+
+
+def _start_event_card_refresh(request: Request, redis: RedisDep, client: KalshiClientDep) -> None:
+    if getattr(request.app.state, "event_card_refresh_in_progress", False):
+        return
+    task = asyncio.create_task(_refresh_event_card_snapshot(request, redis, client))
+    request.app.state.event_card_refresh_task = task
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +238,108 @@ async def get_series(
         series=series,
         total=len(series),
         cache_ttl_seconds=cache_ttl,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/catalog/event-cards
+# ---------------------------------------------------------------------------
+
+
+@router.get("/catalog/event-cards", response_model=CatalogEventCardsResponse)
+async def get_event_cards(
+    redis: RedisDep,
+    client: KalshiClientDep,
+    request: Request,
+    response: Response,
+    category: str = Query(
+        ...,
+        min_length=1,
+        description="Required category filter for globally-correct event card browsing.",
+    ),
+    series_ticker: str | None = Query(
+        default=None,
+        min_length=1,
+        description="Optional secondary series filter applied after category filtering.",
+    ),
+    sort_by: EventCardSortBy = Query(
+        default="total_volume",
+        description="Global backend sort key for event cards.",
+    ),
+    sort_order: SortOrder = Query(
+        default="desc",
+        description="Global backend sort direction.",
+    ),
+    limit: int = Query(
+        default=24,
+        ge=1,
+        le=100,
+        description="Number of event cards to return per page.",
+    ),
+    cursor: str | None = Query(
+        default=None,
+        min_length=1,
+        description="Opaque pagination cursor returned by the previous event-cards response.",
+    ),
+) -> CatalogEventCardsResponse:
+    now = current_utc_time()
+    debug_metrics = getattr(request.app.state, "debug_metrics", None)
+    snapshot = await get_event_card_snapshot(redis, debug_metrics=debug_metrics)
+    if snapshot is not None and should_discard_snapshot(snapshot, now):
+        snapshot = None
+
+    if snapshot is None:
+        try:
+            snapshot = await build_event_card_snapshot(client, debug_metrics=debug_metrics)
+            await set_event_card_snapshot(redis, snapshot)
+            now = current_utc_time()
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            logger.warning("Kalshi event-card snapshot build failed: %s", exc)
+            response.status_code = 502
+            return CatalogEventCardsResponse(
+                status="upstream_failure",
+                cards=[],
+                next_cursor=None,
+                total=0,
+                snapshot_id="unavailable",
+                snapshot_built_at=now,
+                stale=True,
+            )
+
+    assert snapshot is not None
+    stale = is_snapshot_stale(snapshot, now)
+    if stale:
+        _start_event_card_refresh(request, redis, client)
+
+    current_context = EventCardCursorContext(
+        snapshot_id=snapshot.snapshot_id,
+        category=category,
+        series_ticker=series_ticker,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+    offset = 0
+    if cursor is not None:
+        try:
+            decoded_context, offset = decode_cursor(cursor)
+        except CursorDecodeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        if not validate_cursor_context(decoded_context, current_context):
+            raise HTTPException(status_code=422, detail="Cursor does not match the current request context")
+
+    filtered = filter_cards(snapshot.cards, category, series_ticker)
+    ordered = sort_cards(filtered, sort_by, sort_order)
+    page, next_offset, total = page_cards(ordered, offset, limit)
+    next_cursor = encode_cursor(current_context, next_offset) if next_offset is not None else None
+
+    return CatalogEventCardsResponse(
+        status="success",
+        cards=page,
+        next_cursor=next_cursor,
+        total=total,
+        snapshot_id=snapshot.snapshot_id,
+        snapshot_built_at=snapshot.built_at.astimezone(timezone.utc),
+        stale=stale,
     )
 
 

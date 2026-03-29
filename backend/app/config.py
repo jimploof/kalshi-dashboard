@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:4200", "http://127.0.0.1:4200"]
     log_level: str = "INFO"
 
+    # Debug panel — exposes /api/debug/status and the frontend debug button.
+    # Never enable on a public-facing deployment.
+    debug_mode: bool = False
+
     # Kalshi REST integration
     kalshi_api_base_url: str = "https://demo-api.kalshi.co/trade-api/v2"
     kalshi_env: str = "demo"

@@ -3,37 +3,48 @@ import {
   Component,
   DestroyRef,
   computed,
-  effect,
   inject,
   signal,
-  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { EMPTY, catchError, switchMap } from 'rxjs';
+import { EMPTY, catchError, switchMap, take } from 'rxjs';
 
-import { CatalogService, EventDTO, MarketDetailDTO, MarketDTO, SeriesDTO } from './catalog.service';
+import {
+  CatalogService,
+  EventCardSortBy,
+  EventCardSummaryDTO,
+  MarketDetailDTO,
+  MarketDTO,
+  SortOrder,
+} from './catalog.service';
 import { CatalogStateService } from './catalog-state.service';
-import { EventListComponent } from './components/event-list/event-list.component';
+import { EventCardListComponent } from './components/event-card-list/event-card-list.component';
 import { MarketDetailModalComponent } from './components/market-detail-modal/market-detail-modal.component';
 import { MarketListComponent } from './components/market-list/market-list.component';
-import { SeriesListComponent } from './components/series-list/series-list.component';
 
-type CatalogView = 'welcome' | 'series' | 'events' | 'markets';
-type SortKey = 'title_asc' | 'title_desc' | 'volume_desc' | 'volume_asc';
+type CatalogView = 'welcome' | 'event-cards' | 'markets';
 
-export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'title_asc',   label: 'Title (A \u2192 Z)' },
-  { value: 'title_desc',  label: 'Title (Z \u2192 A)' },
-  { value: 'volume_desc', label: 'Volume (High \u2192 Low)' },
-  { value: 'volume_asc',  label: 'Volume (Low \u2192 High)' },
-];
+type SortOption = {
+  readonly sortBy: EventCardSortBy;
+  readonly sortOrder: SortOrder;
+  readonly label: string;
+  readonly key: string;
+};
+
+const SORT_OPTIONS: readonly SortOption[] = [
+  { sortBy: 'total_volume',        sortOrder: 'desc', label: 'Volume (High \u2192 Low)',         key: 'total_volume:desc' },
+  { sortBy: 'total_volume',        sortOrder: 'asc',  label: 'Volume (Low \u2192 High)',          key: 'total_volume:asc'  },
+  { sortBy: 'total_open_interest', sortOrder: 'desc', label: 'Open Interest (High \u2192 Low)',   key: 'total_open_interest:desc' },
+  { sortBy: 'nearest_close_time',  sortOrder: 'asc',  label: 'Closing Soon',                      key: 'nearest_close_time:asc' },
+  { sortBy: 'title',               sortOrder: 'asc',  label: 'Title (A \u2192 Z)',                key: 'title:asc' },
+  { sortBy: 'title',               sortOrder: 'desc', label: 'Title (Z \u2192 A)',                key: 'title:desc' },
+] as const;
 
 @Component({
   selector: 'app-catalog',
   standalone: true,
   imports: [
-    SeriesListComponent,
-    EventListComponent,
+    EventCardListComponent,
     MarketListComponent,
     MarketDetailModalComponent,
   ],
@@ -42,103 +53,78 @@ export const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CatalogComponent {
-  private readonly destroyRef   = inject(DestroyRef);
-  private readonly service      = inject(CatalogService);
-  readonly state                = inject(CatalogStateService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly service    = inject(CatalogService);
+  readonly state              = inject(CatalogStateService);
 
-  // ── Sort / search state (series view only) ────────────────────────────────
-  readonly sortKey      = signal<SortKey>('volume_desc');
-  readonly seriesSearch = signal('');
-  readonly sortOptions  = SORT_OPTIONS;
+  // ── Sort state ─────────────────────────────────────────────────────────────
+  readonly sortBy      = signal<EventCardSortBy>('total_volume');
+  readonly sortOrder   = signal<SortOrder>('desc');
+  readonly sortOptions = SORT_OPTIONS;
 
-  // ── Data signals ──────────────────────────────────────────────────────────
-  readonly series         = signal<readonly SeriesDTO[]>([]);
-  readonly seriesLoading  = signal(false);
-  readonly events         = signal<readonly EventDTO[]>([]);
-  readonly eventsLoading  = signal(false);
+  /** Single key representing the current sort selection, used to drive <select>. */
+  readonly sortKey = computed(() => `${this.sortBy()}:${this.sortOrder()}`);
+
+  // ── Derived browse key — changes whenever category OR sort changes ─────────
+  private readonly _browseKey = computed(() => {
+    const category = this.state.selectedCategory();
+    if (!category) return null;
+    return { category, sortBy: this.sortBy(), sortOrder: this.sortOrder() };
+  });
+
+  // ── Event-cards data signals ───────────────────────────────────────────────
+  readonly cards        = signal<readonly EventCardSummaryDTO[]>([]);
+  readonly cardsLoading = signal(false);
+  readonly nextCursor   = signal<string | null>(null);
+  readonly total        = signal(0);
+  readonly stale        = signal(false);
+
+  // ── Markets drill-in signals ───────────────────────────────────────────────
   readonly markets        = signal<readonly MarketDTO[]>([]);
   readonly marketsLoading = signal(false);
 
-  // ── Modal signals ─────────────────────────────────────────────────────────
-  readonly modalMarket    = signal<MarketDetailDTO | null>(null);
-  readonly modalOpen      = signal(false);
+  // ── Modal signals ──────────────────────────────────────────────────────────
+  readonly modalMarket = signal<MarketDetailDTO | null>(null);
+  readonly modalOpen   = signal(false);
 
-  // ── View ──────────────────────────────────────────────────────────────────
+  // ── View ───────────────────────────────────────────────────────────────────
   readonly currentView = computed<CatalogView>(() => {
-    if (this.state.selectedEventTicker())  return 'markets';
-    if (this.state.selectedSeriesTicker()) return 'events';
-    if (this.state.selectedCategory())     return 'series';
+    if (this.state.selectedEventTicker()) return 'markets';
+    if (this.state.selectedCategory())    return 'event-cards';
     return 'welcome';
   });
 
-  // ── Display list: sort + filter client-side — instant, zero re-fetch ──────────
-  readonly displaySeries = computed(() => {
-    const q              = this.seriesSearch().toLowerCase().trim();
-    const [field, dir]   = this.sortKey().split('_') as [string, string];
-    const asc            = dir === 'asc';
-
-    let items: readonly SeriesDTO[] = this.series();
-
-    if (q) {
-      items = items.filter(s =>
-        (s.ticker?.toLowerCase().includes(q)) ||
-        (s.title?.toLowerCase().includes(q)) ||
-        (s.tags?.some(t => t.toLowerCase().includes(q))),
-      );
-    }
-
-    return [...items].sort((a, b) => {
-      if (field === 'volume') {
-        const av = a.volume ?? (asc ? Infinity : -Infinity);
-        const bv = b.volume ?? (asc ? Infinity : -Infinity);
-        return asc ? av - bv : bv - av;
-      }
-      const at = (a.title ?? a.ticker ?? '').toLowerCase();
-      const bt = (b.title ?? b.ticker ?? '').toLowerCase();
-      return asc ? at.localeCompare(bt) : bt.localeCompare(at);
-    });
-  });
-
   constructor() {
-    // Level 1: category change → load series with volumes; all sorting is client-side after
-    toObservable(this.state.selectedCategory).pipe(
-      switchMap(category => {
-        this.series.set([]);
-        if (!category) { this.seriesLoading.set(false); return EMPTY; }
-        this.seriesLoading.set(true);
-        return this.service.getSeries(category).pipe(
-          catchError(() => { this.seriesLoading.set(false); return EMPTY; }),
+    // Level 1: category + sort changes → fetch first page of event cards.
+    // switchMap cancels the in-flight request when category or sort changes.
+    toObservable(this._browseKey).pipe(
+      switchMap(key => {
+        this.cards.set([]);
+        this.nextCursor.set(null);
+        this.stale.set(false);
+        if (!key) {
+          this.cardsLoading.set(false);
+          return EMPTY;
+        }
+        this.cardsLoading.set(true);
+        return this.service.getEventCards(key.category, {
+          sortBy: key.sortBy,
+          sortOrder: key.sortOrder,
+          limit: 24,
+        }).pipe(
+          catchError(() => { this.cardsLoading.set(false); return EMPTY; }),
         );
       }),
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(r => {
-      this.series.set(r.series);
-      this.seriesLoading.set(false);
+      this.cards.set(r.cards ?? []);
+      this.nextCursor.set(r.next_cursor ?? null);
+      this.total.set(r.total);
+      this.stale.set(r.stale);
+      this.cardsLoading.set(false);
     });
 
-    // Reset search when the user switches category
-    effect(() => {
-      this.state.selectedCategory();
-      untracked(() => this.seriesSearch.set(''));
-    });
-
-    // Level 2: seriesTicker → load events
-    toObservable(this.state.selectedSeriesTicker).pipe(
-      switchMap(ticker => {
-        this.events.set([]);
-        if (!ticker) { this.eventsLoading.set(false); return EMPTY; }
-        this.eventsLoading.set(true);
-        return this.service.getEvents(ticker, 'open').pipe(
-          catchError(() => { this.eventsLoading.set(false); return EMPTY; }),
-        );
-      }),
-      takeUntilDestroyed(this.destroyRef),
-    ).subscribe(r => {
-      this.events.set(r.events);
-      this.eventsLoading.set(false);
-    });
-
-    // Level 3: eventTicker → load event detail → extract markets
+    // Level 2: event card → load event detail → extract inline markets.
     toObservable(this.state.selectedEventTicker).pipe(
       switchMap(ticker => {
         this.markets.set([]);
@@ -155,17 +141,44 @@ export class CatalogComponent {
     });
   }
 
-  onSeriesSelected(ticker: string): void {
-    this.state.selectSeries(ticker);
+  setSortKey(key: string): void {
+    const opt = SORT_OPTIONS.find(o => o.key === key);
+    if (opt) {
+      this.sortBy.set(opt.sortBy);
+      this.sortOrder.set(opt.sortOrder);
+      // _browseKey computed updates automatically, triggering a fresh fetch.
+    }
   }
 
-  onEventSelected(ticker: string): void {
+  loadMore(): void {
+    const cursor   = this.nextCursor();
+    const category = this.state.selectedCategory();
+    if (!cursor || !category || this.cardsLoading()) return;
+    this.cardsLoading.set(true);
+    this.service.getEventCards(category, {
+      sortBy:    this.sortBy(),
+      sortOrder: this.sortOrder(),
+      limit:     24,
+      cursor,
+    }).pipe(
+      take(1),
+      catchError(() => { this.cardsLoading.set(false); return EMPTY; }),
+    ).subscribe(r => {
+      this.cards.update(existing => [...existing, ...(r.cards ?? [])]);
+      this.nextCursor.set(r.next_cursor ?? null);
+      this.total.set(r.total);
+      this.stale.set(r.stale);
+      this.cardsLoading.set(false);
+    });
+  }
+
+  onEventCardSelected(ticker: string): void {
     this.state.selectEvent(ticker);
   }
 
   onMarketSelected(ticker: string): void {
     this.service.getMarketDetail(ticker).pipe(
-      takeUntilDestroyed(this.destroyRef),
+      take(1),
     ).subscribe(r => {
       if (r.market) {
         this.modalMarket.set(r.market);

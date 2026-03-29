@@ -14,6 +14,13 @@
   </div>
 
   <div class="app-footer__right">
+    @if (debug.debugMode()) {
+      <button class="app-footer__debug-btn" (click)="openDebugModal()">DEBUG</button>
+    }
     <span class="app-footer__label">Kalshi Dashboard &bull; v0.1.0</span>
   </div>
 </footer>
+
+@if (debugModalOpen()) {
+  <app-debug-modal (closed)="closeDebugModal()" />
+}
