@@ -1,0 +1,19 @@
+<footer class="app-footer">
+  <div class="app-footer__deps">
+    @if (status(); as s) {
+      <span class="app-footer__chip" [class.app-footer__chip--ok]="s.checks.postgres" [class.app-footer__chip--err]="!s.checks.postgres">
+        PG
+      </span>
+      <span class="app-footer__chip" [class.app-footer__chip--ok]="s.checks.redis" [class.app-footer__chip--err]="!s.checks.redis">
+        REDIS
+      </span>
+    } @else {
+      <span class="app-footer__chip">PG</span>
+      <span class="app-footer__chip">REDIS</span>
+    }
+  </div>
+
+  <div class="app-footer__right">
+    <span class="app-footer__label">Kalshi Dashboard &bull; v0.1.0</span>
+  </div>
+</footer>

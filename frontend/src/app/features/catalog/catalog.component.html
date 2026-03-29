@@ -1,0 +1,110 @@
+<div class="catalog">
+
+  <!-- ── Breadcrumb ─────────────────────────────────────────────────────── -->
+  <nav class="catalog__breadcrumb" aria-label="Catalog navigation">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item">
+        <a role="button" (click)="state.resetToRoot()">Catalog</a>
+      </li>
+      @if (state.selectedCategory()) {
+        <li [class]="'breadcrumb-item' + (currentView() === 'series' ? ' active' : '')">
+          @if (currentView() !== 'series') {
+            <a role="button" (click)="state.resetToCategory()">{{ state.selectedCategory() }}</a>
+          } @else {
+            {{ state.selectedCategory() }}
+          }
+        </li>
+      }
+      @if (state.selectedSeriesTicker()) {
+        <li [class]="'breadcrumb-item' + (currentView() === 'events' ? ' active' : '')">
+          @if (currentView() !== 'events') {
+            <a role="button" (click)="state.resetToSeries()">{{ state.selectedSeriesTicker() }}</a>
+          } @else {
+            {{ state.selectedSeriesTicker() }}
+          }
+        </li>
+      }
+      @if (state.selectedEventTicker()) {
+        <li class="breadcrumb-item active">{{ state.selectedEventTicker() }}</li>
+      }
+    </ol>
+  </nav>
+
+  <!-- ── Content panel ──────────────────────────────────────────────────── -->
+  <div class="catalog__content">
+    @switch (currentView()) {
+
+      @case ('welcome') {
+        <div class="empty-state">
+          <p>Select a category from the left panel to start browsing markets.</p>
+        </div>
+      }
+
+      @case ('series') {
+        <!-- Search / sort toolbar -->
+        <div class="series-toolbar card mb-3">
+          <div class="card-body">
+            <div class="d-flex align-items-center gap-3">
+              <div class="flex-grow-1">
+                <input
+                  type="text"
+                  class="form-control form-control-sm"
+                  placeholder="Search by title, ticker, or tag…"
+                  [value]="seriesSearch()"
+                  (input)="seriesSearch.set($any($event.target).value)"
+                  aria-label="Search series"
+                />
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="series-toolbar__label">Sort</span>
+                <select
+                  class="form-select form-select-sm series-toolbar__select"
+                  (change)="sortKey.set($any($event.target).value)"
+                  aria-label="Sort series"
+                >
+                  @for (opt of sortOptions; track opt.value) {
+                    <option [value]="opt.value" [selected]="sortKey() === opt.value">{{ opt.label }}</option>
+                  }
+                </select>
+              </div>
+              @if (!seriesLoading() && seriesSearch()) {
+                <span class="series-toolbar__count">{{ displaySeries().length }}/{{ series().length }}</span>
+              }
+            </div>
+          </div>
+        </div>
+
+        <app-series-list
+          [series]="displaySeries()"
+          [loading]="seriesLoading()"
+          (seriesSelected)="onSeriesSelected($event)"
+        />
+      }
+
+      @case ('events') {
+        <app-event-list
+          [events]="events()"
+          [loading]="eventsLoading()"
+          (eventSelected)="onEventSelected($event)"
+        />
+      }
+
+      @case ('markets') {
+        <app-market-list
+          [markets]="markets()"
+          [loading]="marketsLoading()"
+          (marketSelected)="onMarketSelected($event)"
+        />
+      }
+
+    }
+  </div>
+
+  <!-- ── Market detail modal ────────────────────────────────────────────── -->
+  <app-market-detail-modal
+    [market]="modalMarket()"
+    [open]="modalOpen()"
+    (close)="closeModal()"
+  />
+
+</div>

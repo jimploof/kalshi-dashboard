@@ -1,16 +1,12 @@
--- Kalshi Dashboard — initial schema
--- All statements use CREATE TABLE IF NOT EXISTS / CREATE INDEX IF NOT EXISTS
--- so this file is safe to re-run (idempotent).
+-- Kalshi Dashboard — application schema
 --
--- Tables
---   series            — Kalshi series (template for recurring events)
---   events            — Kalshi events (real-world occurrences with markets)
---   markets           — Individual outcome markets belonging to an event
---   raw_ingest_events — Raw payload archive before any derivation
---                       (REST hydration now; WebSocket events added in next slice)
+-- This schema is intentionally empty at this phase.
+-- PostgreSQL is retained for future use (WebSocket tick archival, fills,
+-- positions, order history, contingent order state, replay data).
+-- Tables will be added as those features are built.
 --
--- Price / volume fields are stored as TEXT to match the upstream Kalshi API
--- string representations and avoid floating-point precision issues.
+-- When adding tables, keep this file idempotent:
+--   use CREATE TABLE IF NOT EXISTS, CREATE INDEX IF NOT EXISTS, etc.
 
 -- ---------------------------------------------------------------------------
 -- series

@@ -1,0 +1,154 @@
+@if (open() && market(); as m) {
+  <div
+    class="modal d-block"
+    tabindex="-1"
+    role="dialog"
+    aria-modal="true"
+    (keydown.escape)="close.emit()"
+  >
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+
+        <!-- ── Header ─────────────────────────────────────────────── -->
+        <div class="modal-header">
+          <h5 class="modal-title d-flex align-items-center gap-2">
+            <span class="badge badge-ticker">{{ m.ticker }}</span>
+            <span>{{ m.title ?? m.yes_sub_title ?? m.ticker }}</span>
+          </h5>
+          <button
+            type="button"
+            class="btn-close btn-close-white"
+            (click)="close.emit()"
+            aria-label="Close"
+          ></button>
+        </div>
+
+        <!-- ── Body ───────────────────────────────────────────────── -->
+        <div class="modal-body">
+          <div class="row g-4">
+
+            <!-- Left: trading / price data -->
+            <div class="col-md-6">
+              <p class="modal-section-label">Status</p>
+              <span [class]="'badge ' + statusClass(m.status)">
+                {{ m.status ?? '—' }}
+              </span>
+
+              <table class="detail-table mt-3">
+                <tbody>
+                  <tr>
+                    <th>YES Bid</th>
+                    <td class="price-yes mono">{{ formatDollars(m.yes_bid_dollars) }}</td>
+                  </tr>
+                  <tr>
+                    <th>YES Ask</th>
+                    <td class="price-no mono">{{ formatDollars(m.yes_ask_dollars) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Last Price</th>
+                    <td class="price-last mono">{{ formatDollars(m.last_price_dollars) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Prev YES Bid</th>
+                    <td class="mono">{{ formatDollars(m.previous_yes_bid_dollars) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Prev YES Ask</th>
+                    <td class="mono">{{ formatDollars(m.previous_yes_ask_dollars) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Prev Price</th>
+                    <td class="mono">{{ formatDollars(m.previous_price_dollars) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Volume</th>
+                    <td class="mono">{{ formatFp(m.volume_fp) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Volume 24h</th>
+                    <td class="mono">{{ formatFp(m.volume_24h_fp) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Open Interest</th>
+                    <td class="mono">{{ formatFp(m.open_interest_fp) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Notional Value</th>
+                    <td class="mono">{{ m.notional_value_dollars ?? '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Right: settlement / rules -->
+            <div class="col-md-6">
+              <p class="modal-section-label">Details</p>
+
+              <table class="detail-table">
+                <tbody>
+                  <tr>
+                    <th>Market Type</th>
+                    <td>{{ m.market_type ?? '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Strike Type</th>
+                    <td>{{ m.strike_type ?? '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Floor Strike</th>
+                    <td class="mono">{{ m.floor_strike ?? '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Cap Strike</th>
+                    <td class="mono">{{ m.cap_strike ?? '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Open Time</th>
+                    <td class="mono">{{ formatTs(m.open_time) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Close Time</th>
+                    <td class="mono">{{ formatTs(m.close_time) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Settlement Value</th>
+                    <td class="mono">{{ m.settlement_value_dollars ?? '—' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Settlement TS</th>
+                    <td class="mono">{{ formatTs(m.settlement_ts) }}</td>
+                  </tr>
+                  <tr>
+                    <th>Is Provisional</th>
+                    <td>{{ m.is_provisional ? 'Yes' : 'No' }}</td>
+                  </tr>
+                  <tr>
+                    <th>Fractional Trading</th>
+                    <td>{{ m.fractional_trading_enabled ? 'Yes' : 'No' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              @if (m.rules_primary) {
+                <div class="modal-rules mt-3">
+                  <p class="modal-section-label">Rules</p>
+                  <p class="modal-rules__text">{{ m.rules_primary }}</p>
+                </div>
+              }
+              @if (m.rules_secondary) {
+                <div class="modal-rules mt-2">
+                  <p class="modal-rules__text text-muted">{{ m.rules_secondary }}</p>
+                </div>
+              }
+            </div>
+
+          </div>
+        </div><!-- /modal-body -->
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Backdrop -->
+  <div class="modal-backdrop show" (click)="close.emit()"></div>
+}

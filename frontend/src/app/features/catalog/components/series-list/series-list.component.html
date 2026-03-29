@@ -1,0 +1,59 @@
+@if (loading()) {
+  <div class="row g-3">
+    @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+      <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="card series-card">
+          <div class="card-body">
+            <div class="skeleton mb-2" style="height: 18px; width: 80px;"></div>
+            <div class="skeleton mb-2" style="height: 13px; width: 140px;"></div>
+            <div class="skeleton" style="height: 12px; width: 60px;"></div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+} @else if (series().length === 0) {
+  <div class="empty-state">
+    <h3>No series found</h3>
+    <p>Try selecting a different category.</p>
+  </div>
+} @else {
+  <div class="row g-3">
+    @for (s of series(); track s.ticker) {
+      <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="card series-card h-100" (click)="seriesSelected.emit(s.ticker)" role="button" [attr.aria-label]="s.title ?? s.ticker">
+          <div class="card-body">
+            <div class="series-card__ticker">
+              <span class="badge badge-ticker">{{ s.ticker }}</span>
+            </div>
+            <div class="series-card__title">{{ s.title ?? '—' }}</div>
+            <div class="series-card__meta">
+              @if (s.category) {
+                <span class="badge bg-secondary series-card__cat">{{ s.category }}</span>
+              }
+              @if (s.frequency) {
+                <span class="badge series-card__freq">{{ s.frequency }}</span>
+              }
+            </div>
+            @if (s.volume != null) {
+              <div class="series-card__vol-row">
+                <span class="series-card__vol-label">Vol</span>
+                <span class="series-card__vol-value mono">{{ formatVolume(s.volume) }}</span>
+              </div>
+            }
+          </div>
+          <div class="card-footer series-card__footer">
+            <div class="d-flex align-items-center gap-1 flex-grow-1 overflow-hidden">
+              @if (s.tags && s.tags.length > 0) {
+                <ng-icon name="heroTag" size="10px" class="series-card__tag-icon" />
+                <span class="series-card__tags">{{ s.tags.slice(0, 3).join(', ') }}</span>
+              } @else {
+                <span class="series-card__no-tags">—</span>
+              }
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}

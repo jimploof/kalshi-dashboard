@@ -40,7 +40,7 @@ _FORBIDDEN_MARKET_FIELDS = {
     "rules_secondary",          # detail-only
     "price_ranges",             # complex, not in any browse DTO
     "mve_selected_legs",        # complex, not in browse DTO
-    "liquidity_dollars",        # deprecated by Kalshi; always "0.0000"
+    "liquidity_dollars",        # omitted from the normalized browse DTO
 }
 _FORBIDDEN_EVENT_FIELDS = {
     "collateral_return_type",

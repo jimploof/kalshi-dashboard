@@ -1,104 +1,26 @@
-.workstation-shell {
+// ── App shell layout ──────────────────────────────────────────────────────────
+// 44px header / flex body (side-nav + main) / 26px footer
+// Viewport-filling, no scroll on the shell itself.
+
+.shell {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #0d0d0f;
+  overflow: hidden;
+  background: #282a36;
   color: #e0e0e0;
-}
 
-.workstation-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  height: 40px;
-  background: #16161d;
-  border-bottom: 1px solid #2a2a35;
-  flex-shrink: 0;
-}
-
-.workstation-title {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: #7eb6ff;
-}
-
-.workstation-status {
-  font-size: 11px;
-  color: #555;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.workstation-main {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  padding: 16px;
-}
-
-// Placeholder status panel — remove when real UI is built
-.status-panel {
-  background: #16161d;
-  border: 1px solid #2a2a35;
-  border-radius: 4px;
-  padding: 16px 20px;
-  min-width: 280px;
-  align-self: flex-start;
-
-  &__heading {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #7eb6ff;
-    margin-bottom: 12px;
+  &__body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
   }
 
-  &__grid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    column-gap: 16px;
-    row-gap: 6px;
-    font-size: 12px;
-    margin-bottom: 12px;
-
-    dt {
-      color: #888;
-    }
-
-    dd {
-      color: #e0e0e0;
-    }
+  &__main {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: #44475a transparent;
   }
-
-  &__msg {
-    font-size: 11px;
-    color: #555;
-    line-height: 1.4;
-  }
-}
-
-.conn-ok  { color: #4caf7d; }
-.conn-err { color: #e05c5c; }
-
-.status-loading {
-  font-size: 12px;
-  color: #555;
-  padding: 16px;
-}
-
-
-.workstation-status {
-  font-size: 11px;
-  color: #555;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.workstation-main {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
 }

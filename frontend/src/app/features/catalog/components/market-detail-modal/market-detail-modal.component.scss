@@ -1,0 +1,20 @@
+.modal-section-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6272a4;
+  margin-bottom: 6px;
+}
+
+.modal-rules {
+  &__text {
+    font-size: 11px;
+    line-height: 1.6;
+    color: #6272a4;
+  }
+}
+
+.modal-backdrop {
+  opacity: 0.7;
+}

@@ -28,11 +28,10 @@ class Settings(BaseSettings):
     # Leave unset (or set to empty string) to disable Kalshi integration.
     kalshi_private_key_path: str | None = None
 
-    # Background hydration intervals (seconds)
-    # Series don't change often — 15 min default.
-    # Events + markets change more frequently — 5 min default.
-    hydration_interval_series_seconds: int = 900
-    hydration_interval_events_seconds: int = 300
+    # Kalshi REST rate limit.
+    # Set to half the documented cap to leave headroom for route-triggered calls.
+    # Kalshi free/demo tier: 20 req/s cap → default 10 req/s.
+    kalshi_rest_max_calls_per_second: int = 10
 
     @field_validator("database_url")
     @classmethod

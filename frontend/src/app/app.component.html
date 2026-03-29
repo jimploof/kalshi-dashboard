@@ -1,31 +1,10 @@
-<div class="workstation-shell">
-  <header class="workstation-header">
-    <span class="workstation-title">Kalshi Dashboard</span>
-    <span class="workstation-status">scaffold</span>
-  </header>
-  <main class="workstation-main">
-    @if (readinessStatus(); as r) {
-      <section class="status-panel">
-        <h2 class="status-panel__heading">
-          Backend Readiness
-          <span [class]="r.ready ? 'badge badge--ok' : 'badge badge--err'">
-            {{ r.ready ? 'ready' : 'not ready' }}
-          </span>
-        </h2>
-        <dl class="status-panel__grid">
-          <dt>PostgreSQL</dt>
-          <dd [class]="r.checks.postgres ? 'conn-ok' : 'conn-err'">
-            {{ r.checks.postgres ? 'connected' : 'unavailable' }}
-          </dd>
-          <dt>Redis</dt>
-          <dd [class]="r.checks.redis ? 'conn-ok' : 'conn-err'">
-            {{ r.checks.redis ? 'connected' : 'unavailable' }}
-          </dd>
-        </dl>
-      </section>
-    } @else {
-      <p class="status-loading">Connecting to backend…</p>
-    }
-    <router-outlet />
-  </main>
+<div class="shell">
+  <app-header />
+  <div class="shell__body">
+    <app-side-nav />
+    <main class="shell__main">
+      <router-outlet />
+    </main>
+  </div>
+  <app-footer />
 </div>

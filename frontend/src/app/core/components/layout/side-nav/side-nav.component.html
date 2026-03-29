@@ -1,0 +1,97 @@
+<aside class="side-nav" [class.side-nav--collapsed]="collapsed()">
+
+  <!-- Toggle collapse button -->
+  <button class="side-nav__toggle" (click)="toggle()" [title]="collapsed() ? 'Expand sidebar' : 'Collapse sidebar'">
+    @if (collapsed()) {
+      <ng-icon name="heroChevronDoubleRight" size="14px" />
+    } @else {
+      <ng-icon name="heroChevronDoubleLeft" size="14px" />
+    }
+  </button>
+
+  <nav class="side-nav__nav">
+
+    <!-- ── CATALOG section ─────────────────────────────────────── -->
+    <div class="side-nav__group">
+      <a
+        routerLink="/catalog"
+        routerLinkActive="side-nav__item--active"
+        class="side-nav__item"
+        [title]="collapsed() ? 'Catalog' : ''"
+        (click)="!collapsed() && toggleCatalog()"
+      >
+        <ng-icon name="heroSquares2x2" class="side-nav__icon" size="16px" />
+        @if (!collapsed()) {
+          <span class="side-nav__label">Catalog</span>
+          <ng-icon
+            [name]="catalogExpanded() ? 'heroChevronDown' : 'heroChevronRight'"
+            class="side-nav__chevron"
+            size="12px"
+          />
+        }
+      </a>
+
+      @if (!collapsed() && catalogExpanded()) {
+        <div class="side-nav__children">
+          @if (categoriesLoading()) {
+            @for (i of [1, 2, 3, 4, 5]; track i) {
+              <div class="side-nav__cat-skeleton skeleton"></div>
+            }
+          } @else {
+            @for (cat of categories(); track cat.name) {
+              <button
+                class="side-nav__cat-item"
+                [class.side-nav__cat-item--active]="state.selectedCategory() === cat.name"
+                (click)="selectCategory(cat.name)"
+              >
+                <span class="side-nav__cat-dot"></span>
+                <span class="side-nav__cat-name">{{ cat.name }}</span>
+                <span class="side-nav__cat-count">{{ cat.series_count }}</span>
+              </button>
+            }
+          }
+        </div>
+      }
+    </div>
+
+    <!-- ── Future items ──────────────────────────────────────────── -->
+    <div class="side-nav__group side-nav__group--future">
+      <button
+        class="side-nav__item side-nav__item--disabled"
+        disabled
+        [title]="collapsed() ? 'Orders (coming soon)' : ''"
+      >
+        <ng-icon name="heroClipboardDocumentList" class="side-nav__icon" size="16px" />
+        @if (!collapsed()) {
+          <span class="side-nav__label">Orders</span>
+          <span class="side-nav__soon">soon</span>
+        }
+      </button>
+
+      <button
+        class="side-nav__item side-nav__item--disabled"
+        disabled
+        [title]="collapsed() ? 'Positions (coming soon)' : ''"
+      >
+        <ng-icon name="heroChartBar" class="side-nav__icon" size="16px" />
+        @if (!collapsed()) {
+          <span class="side-nav__label">Positions</span>
+          <span class="side-nav__soon">soon</span>
+        }
+      </button>
+
+      <button
+        class="side-nav__item side-nav__item--disabled"
+        disabled
+        [title]="collapsed() ? 'Fills (coming soon)' : ''"
+      >
+        <ng-icon name="heroCheckBadge" class="side-nav__icon" size="16px" />
+        @if (!collapsed()) {
+          <span class="side-nav__label">Fills</span>
+          <span class="side-nav__soon">soon</span>
+        }
+      </button>
+    </div>
+
+  </nav>
+</aside>

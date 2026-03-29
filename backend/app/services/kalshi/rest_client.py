@@ -26,6 +26,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from app.config import Settings
+from app.services.kalshi.rate_limiter import RateLimiter
 from app.services.kalshi.signing import current_timestamp_ms, sign_request
 
 logger = logging.getLogger(__name__)
@@ -34,12 +35,13 @@ logger = logging.getLogger(__name__)
 class KalshiRestClient:
     """Authenticated Kalshi REST client (read-only probe scope for this slice)."""
 
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, rate_limiter: RateLimiter | None = None) -> None:
         self._api_base_url: str = settings.kalshi_api_base_url
         self._api_key_id: str | None = settings.kalshi_api_key_id
         self._private_key: RSAPrivateKey | None = self._load_key(
             settings.kalshi_private_key_path
         )
+        self._rate_limiter = rate_limiter
 
     # ------------------------------------------------------------------
     # Configuration check
@@ -121,6 +123,8 @@ class KalshiRestClient:
             httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
             httpx.RequestError:    on network/timeout errors.
         """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
         endpoint = "/portfolio/balance"
         headers = self._auth_headers("GET", endpoint)
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -152,6 +156,8 @@ class KalshiRestClient:
             httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
             httpx.RequestError:    on network/timeout errors.
         """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
         endpoint = "/markets"
         params: dict[str, str | int] = {"limit": limit}
         if status is not None:
@@ -184,6 +190,8 @@ class KalshiRestClient:
             httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
             httpx.RequestError:    on network/timeout errors.
         """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
         endpoint = f"/markets/{ticker}"
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -233,6 +241,8 @@ class KalshiRestClient:
             httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
             httpx.RequestError:    on network/timeout errors.
         """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
         endpoint = "/events"
         params: dict[str, str | int | bool] = {"limit": limit}
         if series_ticker is not None:
@@ -286,6 +296,8 @@ class KalshiRestClient:
             httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
             httpx.RequestError:    on network/timeout errors.
         """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
         endpoint = f"/events/{event_ticker}"
         params: dict[str, str] = {}
         if with_nested_markets:
@@ -307,6 +319,7 @@ class KalshiRestClient:
         *,
         category: str | None = None,
         tags: str | None = None,
+        include_volume: bool = False,
     ) -> dict:
         """
         GET /series — public series list endpoint.
@@ -328,15 +341,46 @@ class KalshiRestClient:
             httpx.HTTPStatusError: on non-2xx responses (caller inspects status code).
             httpx.RequestError:    on network/timeout errors.
         """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
         endpoint = "/series"
         params: dict[str, str] = {}
         if category is not None:
             params["category"] = category
         if tags is not None:
             params["tags"] = tags
+        if include_volume:
+            params["include_volume"] = "true"
 
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
 
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                self._api_base_url + endpoint,
+                headers=headers,
+                params=params,
+            )
+            response.raise_for_status()
+            return response.json()  # type: ignore[no-any-return]
+
+    async def get_single_series(self, ticker: str, *, include_volume: bool = False) -> dict:
+        """
+        GET /series/{ticker} — single series detail, optionally with volume.
+
+        When include_volume=True the Kalshi response includes a 'volume_fp' field
+        with the total contracts traded across all events in this series.
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses.
+            httpx.RequestError:    on network/timeout errors.
+        """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
+        endpoint = f"/series/{ticker}"
+        params: dict[str, str] = {}
+        if include_volume:
+            params["include_volume"] = "true"
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
                 self._api_base_url + endpoint,

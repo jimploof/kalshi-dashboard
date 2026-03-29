@@ -1,0 +1,21 @@
+<header class="app-header">
+  <div class="app-header__brand">
+    <ng-icon name="heroBolt" class="app-header__icon" size="18px" />
+    <span class="app-header__title">Kalshi Dashboard</span>
+    <span class="app-header__env">LOCAL</span>
+  </div>
+
+  <div class="app-header__status">
+    @if (status(); as s) {
+      <span
+        class="app-header__dot"
+        [class.app-header__dot--ok]="s.ready"
+        [class.app-header__dot--err]="!s.ready"
+      ></span>
+      <span class="app-header__status-label">{{ s.ready ? 'ONLINE' : 'DEGRADED' }}</span>
+    } @else {
+      <span class="app-header__dot app-header__dot--warn"></span>
+      <span class="app-header__status-label">CONNECTING</span>
+    }
+  </div>
+</header>

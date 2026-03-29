@@ -35,7 +35,7 @@ _FORBIDDEN_MARKET_FIELDS = {
     "rules_secondary",          # detail-view only
     "price_ranges",             # complex structure, not in any browse DTO
     "mve_selected_legs",        # complex multivariate structure, not in browse DTO
-    "liquidity_dollars",        # deprecated by Kalshi; always "0.0000"
+    "liquidity_dollars",        # omitted from the normalized browse DTO
 }
 
 # Fields that must always be present on a successful response wrapper.

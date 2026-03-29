@@ -71,6 +71,19 @@ _SAMPLE_SERIES_RESPONSE = {
     ]
 }
 
+_SAMPLE_SERIES_WITH_VOLUME_RESPONSE = {
+    "series": [
+        {
+            "ticker": "KXBTC",
+            "title": "Bitcoin Daily",
+            "category": "crypto",
+            "frequency": "daily",
+            "tags": ["bitcoin", "crypto"],
+            "volume_fp": "12345.00",
+        }
+    ]
+}
+
 _SAMPLE_SERIES_EMPTY = {"series": []}
 
 
@@ -127,6 +140,25 @@ async def test_kalshi_series_dto_fields(async_client: AsyncClient) -> None:
     assert s["category"] == "crypto"
     assert s["frequency"] == "daily"
     assert s["tags"] == ["bitcoin", "crypto"]
+    assert s["volume"] is None
+
+
+@pytest.mark.asyncio
+async def test_kalshi_series_include_volume_maps_volume_fp(async_client: AsyncClient) -> None:
+    """include_volume=true maps documented upstream volume_fp into SeriesDTO.volume."""
+    mock = _mock_client(result=_SAMPLE_SERIES_WITH_VOLUME_RESPONSE)
+    app.dependency_overrides[get_kalshi_client] = lambda: mock
+
+    try:
+        response = await async_client.get("/api/kalshi/series?include_volume=true")
+    finally:
+        app.dependency_overrides.pop(get_kalshi_client, None)
+
+    assert response.status_code == 200
+    series = response.json()["series"]
+    assert len(series) == 1
+    assert series[0]["ticker"] == "KXBTC"
+    assert series[0]["volume"] == 12345.0
 
 
 @pytest.mark.asyncio
@@ -194,7 +226,7 @@ async def test_kalshi_series_default_params_forwarded(async_client: AsyncClient)
     finally:
         app.dependency_overrides.pop(get_kalshi_client, None)
 
-    mock.get_series.assert_called_once_with(category=None, tags=None)
+    mock.get_series.assert_called_once_with(category=None, tags=None, include_volume=False)
 
 
 @pytest.mark.asyncio
@@ -208,7 +240,7 @@ async def test_kalshi_series_category_param_forwarded(async_client: AsyncClient)
     finally:
         app.dependency_overrides.pop(get_kalshi_client, None)
 
-    mock.get_series.assert_called_once_with(category="crypto", tags=None)
+    mock.get_series.assert_called_once_with(category="crypto", tags=None, include_volume=False)
 
 
 @pytest.mark.asyncio
@@ -222,7 +254,7 @@ async def test_kalshi_series_tags_param_forwarded(async_client: AsyncClient) -> 
     finally:
         app.dependency_overrides.pop(get_kalshi_client, None)
 
-    mock.get_series.assert_called_once_with(category=None, tags="bitcoin,crypto")
+    mock.get_series.assert_called_once_with(category=None, tags="bitcoin,crypto", include_volume=False)
 
 
 @pytest.mark.asyncio
@@ -236,7 +268,21 @@ async def test_kalshi_series_both_params_forwarded(async_client: AsyncClient) ->
     finally:
         app.dependency_overrides.pop(get_kalshi_client, None)
 
-    mock.get_series.assert_called_once_with(category="sports", tags="nba")
+    mock.get_series.assert_called_once_with(category="sports", tags="nba", include_volume=False)
+
+
+@pytest.mark.asyncio
+async def test_kalshi_series_include_volume_param_forwarded(async_client: AsyncClient) -> None:
+    """include_volume query param is forwarded to the client method."""
+    mock = _mock_client(result=_SAMPLE_SERIES_EMPTY)
+    app.dependency_overrides[get_kalshi_client] = lambda: mock
+
+    try:
+        await async_client.get("/api/kalshi/series?include_volume=true")
+    finally:
+        app.dependency_overrides.pop(get_kalshi_client, None)
+
+    mock.get_series.assert_called_once_with(category=None, tags=None, include_volume=True)
 
 
 # ---------------------------------------------------------------------------

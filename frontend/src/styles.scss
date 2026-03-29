@@ -1,9 +1,94 @@
+// ─── Dracula Theme — Bootstrap 5.3 dark overrides ───────────────────────────
+// Dracula canonical palette:
+//   bg:       #282a36   current-line: #44475a   fg:      #f8f8f2
+//   comment:  #6272a4   purple:       #bd93f9   pink:    #ff79c6
+//   cyan:     #8be9fd   green:        #50fa7b   orange:  #ffb86c
+//   red:      #ff5555   yellow:       #f1fa8c
+//
+// Surface scale:
+//   deep:    #1e1f29   base:  #282a36   raised: #2c2e3d   float: #383a4a
+// ─────────────────────────────────────────────────────────────────────────────
+
+[data-bs-theme='dark'] {
+  // Surface palette
+  --bs-body-bg:                    #282a36;
+  --bs-body-bg-rgb:                40, 42, 54;
+  --bs-body-color:                 #f8f8f2;
+  --bs-body-color-rgb:             248, 248, 242;
+  --bs-secondary-bg:               #2c2e3d;
+  --bs-tertiary-bg:                #1e1f29;
+  --bs-emphasis-color:             #ffffff;
+
+  // Borders
+  --bs-border-color:               #44475a;
+  --bs-border-color-translucent:   rgba(68, 71, 90, 0.8);
+
+  // Cards
+  --bs-card-bg:                    #2c2e3d;
+  --bs-card-border-color:          #44475a;
+  --bs-card-cap-bg:                #383a4a;
+
+  // Modals
+  --bs-modal-bg:                   #2c2e3d;
+  --bs-modal-border-color:         #44475a;
+  --bs-modal-header-bg:            #383a4a;
+  --bs-modal-footer-bg:            #383a4a;
+
+  // Brand: Dracula purple
+  --bs-primary:                    #bd93f9;
+  --bs-primary-rgb:                189, 147, 249;
+  --bs-link-color:                 #bd93f9;
+  --bs-link-hover-color:           #d1b0fb;
+  --bs-link-color-rgb:             189, 147, 249;
+
+  // Semantic
+  --bs-success:                    #50fa7b;
+  --bs-success-rgb:                80, 250, 123;
+  --bs-danger:                     #ff5555;
+  --bs-danger-rgb:                 255, 85, 85;
+  --bs-warning:                    #ffb86c;
+  --bs-warning-rgb:                255, 184, 108;
+  --bs-info:                       #8be9fd;
+  --bs-info-rgb:                   139, 233, 253;
+  --bs-muted:                      #6272a4;
+
+  // Navbar / nav
+  --bs-nav-link-color:             #6272a4;
+  --bs-nav-link-hover-color:       #f8f8f2;
+
+  // List groups
+  --bs-list-group-bg:              #2c2e3d;
+  --bs-list-group-border-color:    #44475a;
+  --bs-list-group-color:           #f8f8f2;
+  --bs-list-group-hover-bg:        #383a4a;
+  --bs-list-group-active-bg:       #383a4a;
+  --bs-list-group-active-color:    #bd93f9;
+  --bs-list-group-active-border-color: #44475a;
+
+  // Breadcrumbs
+  --bs-breadcrumb-bg:              transparent;
+  --bs-breadcrumb-divider-color:   #6272a4;
+  --bs-breadcrumb-item-active-color: #f8f8f2;
+
+  // Badges
+  --bs-badge-padding-x:            .45em;
+  --bs-badge-padding-y:            .25em;
+  --bs-badge-font-size:            .7em;
+  --bs-badge-border-radius:        3px;
+
+  // Dropdowns
+  --bs-dropdown-bg:                #383a4a;
+  --bs-dropdown-border-color:      #44475a;
+  --bs-dropdown-link-color:        #f8f8f2;
+  --bs-dropdown-link-hover-bg:     #44475a;
+  --bs-dropdown-link-hover-color:  #f8f8f2;
+}
+
+// ─── Base / shell reset ───────────────────────────────────────────────────────
 *,
 *::before,
 *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 html,
@@ -13,9 +98,116 @@ body {
 }
 
 body {
-  background: #0d0d0f;
-  color: #e0e0e0;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace, sans-serif;
+  background: #282a36;
+  color: #f8f8f2;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ─── Workstation utility classes ─────────────────────────────────────────────
+
+.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.84em;
+  letter-spacing: 0.02em;
+}
+
+.price-yes  { color: #50fa7b; font-weight: 600; }  // Dracula green
+.price-no   { color: #ff5555; font-weight: 600; }  // Dracula red
+.price-last { color: #f1fa8c; }                    // Dracula yellow
+.text-accent { color: #bd93f9; }                   // Dracula purple
+
+// Compact card density overrides (Bootstrap classes get tight spacing)
+.card-body { padding: 12px 14px; }
+.card-header { padding: 8px 14px; }
+.card-footer { padding: 8px 14px; }
+
+.card {
+  transition: border-color 0.15s ease;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #bd93f9 !important;
+  }
+}
+
+// Status badges — Dracula-tinted
+.badge-open     { background-color: rgba(80, 250, 123, 0.12);  color: #50fa7b; border: 1px solid rgba(80, 250, 123, 0.3); }
+.badge-closed   { background-color: rgba(68, 71, 90, 0.4);     color: #6272a4; border: 1px solid rgba(98, 114, 164, 0.35); }
+.badge-settled  { background-color: rgba(68, 71, 90, 0.25);    color: #44475a; border: 1px solid rgba(68, 71, 90, 0.4); }
+.badge-unopened { background-color: rgba(255, 184, 108, 0.12); color: #ffb86c; border: 1px solid rgba(255, 184, 108, 0.3); }
+.badge-ticker   { background-color: rgba(189, 147, 249, 0.12); color: #bd93f9; border: 1px solid rgba(189, 147, 249, 0.3); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em; }
+
+// Modal backdrop is controlled by Bootstrap CSS; ng drives visibility via @if
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.75);
+}
+
+// Breadcrumb separator
+.breadcrumb-item + .breadcrumb-item::before {
+  content: '›';
+  color: #6272a4;
+}
+
+// Compact table for market detail fields
+.detail-table {
+  width: 100%;
+  td:first-child {
+    color: #6272a4;
+    width: 48%;
+    padding: 3px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  td:last-child {
+    color: #f8f8f2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 3px 0;
+  }
+}
+
+// Welcome / empty state
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  color: #44475a;
+  text-align: center;
+
+  h3 { font-size: 14px; color: #6272a4; font-weight: 500; }
+  p  { font-size: 12px; color: #44475a; }
+}
+
+// Scrollable content area within main
+.scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #44475a transparent;
+
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background-color: #44475a; border-radius: 3px; }
+}
+
+// Loading skeleton shimmer
+@keyframes shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #2c2e3d 25%, #383a4a 50%, #2c2e3d 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 3px;
+  display: inline-block;
 }

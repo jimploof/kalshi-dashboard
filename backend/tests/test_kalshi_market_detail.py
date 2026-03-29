@@ -27,16 +27,16 @@ from app.main import app
 from app.services.kalshi.rest_client import KalshiRestClient
 
 # Fields that must NOT appear in the detail response (explicitly excluded from
-# MarketDetailDTO by design or because they are deprecated with no useful value).
+# MarketDetailDTO by design because they are not currently needed by the UI).
 _FORBIDDEN_DETAIL_FIELDS = {
     "no_bid_dollars",       # not in any DTO
     "no_ask_dollars",       # not in any DTO
-    "liquidity_dollars",    # deprecated by Kalshi; always "0.0000"
+    "liquidity_dollars",    # omitted from the normalized DTO
     "price_ranges",         # complex structure, excluded from DTOs
     "mve_selected_legs",    # complex multivariate structure, excluded
-    "tick_size",            # deprecated by Kalshi
-    "expiration_time",      # deprecated by Kalshi
-    "response_price_units", # deprecated by Kalshi
+    "tick_size",            # omitted from the normalized DTO
+    "expiration_time",      # omitted from the normalized DTO
+    "response_price_units", # omitted from the normalized DTO
 }
 
 # Required fields on a successful MarketDetailDTO.

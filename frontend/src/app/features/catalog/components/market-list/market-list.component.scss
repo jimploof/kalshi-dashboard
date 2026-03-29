@@ -1,0 +1,60 @@
+.market-list {
+  &__header {
+    display: grid;
+    grid-template-columns: 160px 1fr 60px 60px 60px 70px 80px;
+    gap: 8px;
+    padding: 4px 14px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6272a4;
+    border-bottom: 1px solid #44475a;
+    margin-bottom: 4px;
+  }
+
+  &__col-ticker { min-width: 0; }
+  &__col-title  { min-width: 0; }
+  &__col-price  { text-align: right; }
+  &__col-status { text-align: center; }
+  &__col-vol    { text-align: right; }
+}
+
+.market-card {
+  &__body {
+    display: grid;
+    grid-template-columns: 160px 1fr 60px 60px 60px 70px 80px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &__ticker {
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__title {
+    font-size: 11px;
+    color: #cdd6f4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__price {
+    font-size: 12px;
+    text-align: right;
+  }
+
+  &__status {
+    text-align: center;
+    font-size: 10px;
+  }
+
+  &__vol {
+    font-size: 11px;
+    text-align: right;
+  }
+}

@@ -1,0 +1,64 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 16px;
+  background: #21222c;
+  border-bottom: 1px solid #44475a;
+  flex-shrink: 0;
+  z-index: 100;
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__icon {
+    color: #bd93f9;
+  }
+
+  &__title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: #d0e4ff;
+    text-transform: uppercase;
+  }
+
+  &__env {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: #6272a4;
+    border: 1px solid #44475a;
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 2px;
+  }
+
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  &__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #6272a4;
+
+    &--ok   { background: #50fa7b; box-shadow: 0 0 6px rgba(80, 250, 123, 0.5); }
+    &--err  { background: #ff5555; box-shadow: 0 0 6px rgba(255, 85, 85, 0.5); }
+    &--warn { background: #ffb86c; box-shadow: 0 0 6px rgba(255, 184, 108, 0.5); }
+  }
+
+  &__status-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: #6272a4;
+  }
+}

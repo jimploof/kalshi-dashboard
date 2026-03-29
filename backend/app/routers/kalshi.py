@@ -172,6 +172,47 @@ def _map_market(raw: dict) -> MarketDTO:
     )
 
 
+def _map_market_detail(raw: dict) -> "MarketDetailDTO":
+    """Normalise a raw upstream market object into a full MarketDetailDTO.
+
+    Extends ``_map_market`` with the extra settlement, price-movement, strike,
+    and rules fields that are only present on the single-market GET response.
+    Defined here (alongside ``_map_market``) so both catalog.py and the
+    existing kalshi.py handler can import from a single location.
+    """
+    return MarketDetailDTO(
+        ticker=raw["ticker"],
+        event_ticker=raw.get("event_ticker"),
+        market_type=raw.get("market_type"),
+        yes_sub_title=raw.get("yes_sub_title"),
+        no_sub_title=raw.get("no_sub_title"),
+        title=raw.get("title"),
+        subtitle=raw.get("subtitle"),
+        status=raw.get("status"),
+        open_time=raw.get("open_time"),
+        close_time=raw.get("close_time"),
+        yes_bid_dollars=raw.get("yes_bid_dollars"),
+        yes_ask_dollars=raw.get("yes_ask_dollars"),
+        last_price_dollars=raw.get("last_price_dollars"),
+        volume_fp=raw.get("volume_fp"),
+        volume_24h_fp=raw.get("volume_24h_fp"),
+        open_interest_fp=raw.get("open_interest_fp"),
+        previous_yes_bid_dollars=raw.get("previous_yes_bid_dollars"),
+        previous_yes_ask_dollars=raw.get("previous_yes_ask_dollars"),
+        previous_price_dollars=raw.get("previous_price_dollars"),
+        notional_value_dollars=raw.get("notional_value_dollars"),
+        settlement_value_dollars=raw.get("settlement_value_dollars"),
+        settlement_ts=raw.get("settlement_ts"),
+        strike_type=raw.get("strike_type"),
+        floor_strike=raw.get("floor_strike"),
+        cap_strike=raw.get("cap_strike"),
+        rules_primary=raw.get("rules_primary"),
+        rules_secondary=raw.get("rules_secondary"),
+        is_provisional=raw.get("is_provisional"),
+        fractional_trading_enabled=raw.get("fractional_trading_enabled"),
+    )
+
+
 class KalshiMarketsResponse(BaseModel):
     status: Literal["success", "upstream_failure"]
     message: str
@@ -443,6 +484,7 @@ class SeriesDTO(BaseModel):
     category: str | None = None
     tags: list[str] = []
     frequency: str | None = None
+    volume: float | None = None
 
 
 class KalshiSeriesResponse(BaseModel):
@@ -457,6 +499,7 @@ async def kalshi_get_series(
     response: Response,
     category: str | None = Query(default=None, description="Filter by category (e.g. crypto, politics, sports)"),
     tags: str | None = Query(default=None, description="Filter by tags (comma-separated)"),
+    include_volume: bool = Query(default=False, description="When true, request documented series volume_fp data from Kalshi"),
 ) -> KalshiSeriesResponse:
     """Retrieve series from Kalshi for category-level navigation.
 
@@ -471,7 +514,7 @@ async def kalshi_get_series(
     credentials are configured (avoids unauthenticated rate-limit buckets).
     """
     try:
-        raw = await client.get_series(category=category, tags=tags)
+        raw = await client.get_series(category=category, tags=tags, include_volume=include_volume)
     except httpx.HTTPStatusError as exc:
         code = exc.response.status_code
         logger.warning("Kalshi /series HTTP error %s at %s", code, exc.request.url)
@@ -498,6 +541,7 @@ async def kalshi_get_series(
             category=s.get("category"),
             tags=s.get("tags") or [],
             frequency=s.get("frequency"),
+            volume=float(s["volume_fp"]) if s.get("volume_fp") is not None else None,
         )
         for s in raw_series
     ]
@@ -524,8 +568,8 @@ class MarketDetailDTO(MarketDTO):
     needed to render a full market inspection pane or inform order entry.
 
     Fields confirmed from docs.kalshi.com/api-reference/market/get-market.
-    The ``liquidity_dollars`` field is explicitly omitted: the Kalshi docs
-    state it is deprecated and will always return "0.0000".
+    Some documented upstream fields are intentionally omitted from this
+    normalized DTO when they are not currently needed by the product surface.
     """
 
     previous_yes_bid_dollars: str | None = None   # best YES bid price 24h ago
@@ -593,37 +637,7 @@ async def kalshi_get_market(
         )
 
     raw_market: dict = raw.get("market") or {}
-    market = MarketDetailDTO(
-        ticker=raw_market["ticker"],
-        event_ticker=raw_market.get("event_ticker"),
-        market_type=raw_market.get("market_type"),
-        yes_sub_title=raw_market.get("yes_sub_title"),
-        no_sub_title=raw_market.get("no_sub_title"),
-        title=raw_market.get("title"),
-        subtitle=raw_market.get("subtitle"),
-        status=raw_market.get("status"),
-        open_time=raw_market.get("open_time"),
-        close_time=raw_market.get("close_time"),
-        yes_bid_dollars=raw_market.get("yes_bid_dollars"),
-        yes_ask_dollars=raw_market.get("yes_ask_dollars"),
-        last_price_dollars=raw_market.get("last_price_dollars"),
-        volume_fp=raw_market.get("volume_fp"),
-        volume_24h_fp=raw_market.get("volume_24h_fp"),
-        open_interest_fp=raw_market.get("open_interest_fp"),
-        previous_yes_bid_dollars=raw_market.get("previous_yes_bid_dollars"),
-        previous_yes_ask_dollars=raw_market.get("previous_yes_ask_dollars"),
-        previous_price_dollars=raw_market.get("previous_price_dollars"),
-        notional_value_dollars=raw_market.get("notional_value_dollars"),
-        settlement_value_dollars=raw_market.get("settlement_value_dollars"),
-        settlement_ts=raw_market.get("settlement_ts"),
-        strike_type=raw_market.get("strike_type"),
-        floor_strike=raw_market.get("floor_strike"),
-        cap_strike=raw_market.get("cap_strike"),
-        rules_primary=raw_market.get("rules_primary"),
-        rules_secondary=raw_market.get("rules_secondary"),
-        is_provisional=raw_market.get("is_provisional"),
-        fractional_trading_enabled=raw_market.get("fractional_trading_enabled"),
-    )
+    market = _map_market_detail(raw_market)
     return KalshiMarketDetailResponse(
         status="success",
         message=_MARKET_DETAIL_SUCCESS_MESSAGE,

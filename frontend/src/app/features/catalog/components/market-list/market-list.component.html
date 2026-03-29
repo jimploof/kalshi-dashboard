@@ -1,0 +1,57 @@
+@if (loading()) {
+  <div class="row g-2">
+    @for (i of [1, 2, 3, 4]; track i) {
+      <div class="col-12">
+        <div class="card market-card">
+          <div class="card-body d-flex align-items-center gap-3">
+            <div class="skeleton" style="height: 18px; width: 160px; flex-shrink: 0;"></div>
+            <div class="skeleton flex-grow-1" style="height: 13px;"></div>
+            <div class="d-flex gap-2">
+              <div class="skeleton" style="height: 18px; width: 40px;"></div>
+              <div class="skeleton" style="height: 18px; width: 40px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+} @else if (markets().length === 0) {
+  <div class="empty-state">
+    <h3>No markets</h3>
+    <p>This event has no markets available.</p>
+  </div>
+} @else {
+  <!-- Header row -->
+  <div class="market-list__header">
+    <span class="market-list__col-ticker">Ticker</span>
+    <span class="market-list__col-title">Market</span>
+    <span class="market-list__col-price">YES Bid</span>
+    <span class="market-list__col-price">YES Ask</span>
+    <span class="market-list__col-price">Last</span>
+    <span class="market-list__col-status">Status</span>
+    <span class="market-list__col-vol">Vol 24h</span>
+  </div>
+
+  <div class="row g-1">
+    @for (m of markets(); track m.ticker) {
+      <div class="col-12">
+        <div
+          class="card market-card"
+          role="button"
+          (click)="marketSelected.emit(m.ticker)"
+          [attr.aria-label]="m.title ?? m.ticker"
+        >
+          <div class="card-body market-card__body">
+            <span class="badge badge-ticker market-card__ticker">{{ m.ticker }}</span>
+            <span class="market-card__title">{{ m.yes_sub_title ?? m.title ?? '—' }}</span>
+            <span class="price-yes mono market-card__price">{{ m.yes_bid_dollars ?? '—' }}</span>
+            <span class="price-no  mono market-card__price">{{ m.yes_ask_dollars ?? '—' }}</span>
+            <span class="price-last mono market-card__price">{{ m.last_price_dollars ?? '—' }}</span>
+            <span class="badge {{ statusClass(m.status) }} market-card__status">{{ m.status ?? '—' }}</span>
+            <span class="mono market-card__vol text-secondary">{{ m.volume_24h_fp ?? '—' }}</span>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}
