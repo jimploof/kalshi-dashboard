@@ -20,20 +20,29 @@ All code suggestions must align with this architecture and the conventions below
 ---
 
 ## Current Phase Rule
-The project is currently in the **initial scaffold phase**.
+The project is currently in the **foundation plus read-only discovery slice phase**.
 
-At this phase, Copilot should focus on:
-- repository structure
-- Angular foundation
-- FastAPI foundation
+Implemented and in-scope at this phase:
+- Angular application shell and workstation-style catalog surface
+- FastAPI read-only Kalshi connectivity and discovery routes
 - Docker Compose wiring
 - PostgreSQL and Redis container wiring
 - Angular dev proxy setup
 - backend configuration and CORS foundation
 - OpenAPI/type-generation foundation
-- documentation scaffolding
-- minimal health/test endpoints only
-- minimal Kalshi connectivity skeletons only when explicitly requested
+- backend-owned catalog browsing endpoints for categories, series, events, and market detail
+- Redis-backed catalog caching for series discovery
+- normalized DTO mapping for Kalshi read-only discovery endpoints
+- frontend catalog drill-down UI with backend-only data access
+- client-side search and sort over already-loaded backend data when no new backend data is required
+- backend tests for DTO normalization and raw-field leakage prevention
+
+At this phase, Copilot should focus on:
+- strengthening the existing discovery/catalog slice
+- improving normalization correctness against public Kalshi docs
+- keeping read-only discovery endpoints fast, deterministic, and proxy-safe
+- extending normalized DTOs only when the product surface actually needs additional fields
+- keeping frontend/backend contracts generated from OpenAPI and consumed through services
 
 At this phase, Copilot must **not**:
 - implement Kalshi trading logic
@@ -42,10 +51,35 @@ At this phase, Copilot must **not**:
 - implement charting features in detail
 - implement queue position workflows
 - invent speculative product features
-- invent speculative domain models beyond basic skeletons
+- invent speculative domain models beyond current read-only discovery needs
 - introduce extra infrastructure beyond the approved stack
 
-Prefer the smallest correct scaffold that matches the approved architecture.
+Prefer the smallest correct slice that matches the approved architecture and the currently implemented discovery surface.
+
+### Current Implemented Slice
+The repo already contains a concrete read-only Kalshi discovery implementation.
+
+Backend routes currently implemented include:
+- `GET /api/kalshi/health`
+- `GET /api/kalshi/markets`
+- `GET /api/kalshi/markets/{ticker}`
+- `GET /api/kalshi/events`
+- `GET /api/kalshi/events/{ticker}`
+- `GET /api/kalshi/series`
+- `GET /api/catalog/categories`
+- `GET /api/catalog/series`
+- `GET /api/catalog/events`
+- `GET /api/catalog/events/{ticker}`
+- `GET /api/catalog/markets/{ticker}`
+
+Frontend surface currently implemented includes:
+- dense Angular workstation shell
+- catalog category navigation
+- series → events → markets drill-down
+- market detail modal
+- client-side series search and sort backed by normalized backend DTOs
+
+Changes in this repo should preserve and extend this slice rather than reintroducing scaffold-only assumptions.
 
 ---
 
@@ -276,6 +310,22 @@ Use thin transport/client layers to receive external payloads, then normalize in
 The system should be resilient to upstream payload-format evolution.
 Do not couple broad application code directly to raw exchange field layouts.
 
+### 12a. Public docs are the source of truth
+`docs.kalshi.com` is the authoritative source of truth for endpoint parameters,
+response field names, and documented behavior.
+
+When working on Kalshi integration code:
+- verify field names against the public docs before mapping them
+- do not infer field names from intuition or UI labels
+- prefer documented bulk endpoints over per-item fan-out when the docs support the needed field
+- if a docs page is ambiguous or the fetch tooling is incomplete, verify against the live documented public endpoint before changing mappings
+- update tests and comments to match the documented field name exactly
+
+Examples of the expected rigor:
+- series volume is sourced from `volume_fp`, not `volume`
+- fixed-point contract-count fields such as `volume_fp`, `volume_24h_fp`, and `open_interest_fp` must be treated deliberately and not renamed casually
+- comments must not claim a field is deprecated unless the public docs explicitly support that claim
+
 ---
 
 ### 13. Separate transport concerns cleanly
@@ -493,6 +543,9 @@ Do not invent scattered ad hoc environment variable patterns.
 - The frontend must consume normalized backend state.
 - All exchange-originating live state must come from the backend.
 - The frontend must not depend on raw Kalshi transport payloads as a stable contract.
+- All frontend HTTP requests must go through a dedicated service wrapper and proxy-relative backend paths such as `/api/...`.
+- Frontend components must never call Kalshi directly and must never hardcode external exchange URLs.
+- Pure presentation changes such as local search and sorting over already-loaded discovery data should remain client-side and must not trigger unnecessary backend or Kalshi refetches.
 - Components must be designed for:
   - main chart stack
   - ladder
@@ -546,6 +599,9 @@ Do not invent scattered ad hoc environment variable patterns.
 - In-memory live state is acceptable for current state, but durable history belongs in PostgreSQL.
 - Do not design the backend as microservices unless explicitly approved.
 - Do not introduce unnecessary infrastructure for a localhost-only internal system.
+- Read-only discovery endpoints should prefer one documented upstream request plus normalization/caching over avoidable per-item fan-out.
+- Redis-backed read caches are acceptable for discovery/navigation data when they reduce repeated public Kalshi reads.
+- Catalog/discovery routes should reuse shared normalization helpers rather than remapping the same payload shape in multiple places.
 
 ### Code Style
 - Ruff is the linter and formatter. Follow Ruff defaults.
@@ -603,6 +659,10 @@ The following may be considered later, but are not assumed to be core V1 require
 - Use `httpx` and FastAPI testing patterns for API endpoint tests.
 - Test files live in `backend/tests/`.
 - Always mock external dependencies in unit tests.
+- Add or update tests whenever a Kalshi field mapping, query parameter, or normalized DTO contract changes.
+- Tests for read-only Kalshi routes should verify both:
+  - correct forwarding of documented query parameters
+  - intentional omission of raw upstream fields that are not part of the normalized DTO contract
 - Prefer deterministic tests for:
   - scheduler behavior
   - contingent order orchestration
@@ -610,6 +670,8 @@ The following may be considered later, but are not assumed to be core V1 require
   - recovery flows
   - reconciliation flows
   - snapshot/delta reducers
+  - Kalshi DTO normalization correctness
+  - catalog caching and series-volume behavior
 
 ---
 
@@ -619,6 +681,8 @@ The following may be considered later, but are not assumed to be core V1 require
 - All API base URLs must come from environment variables or configuration, never hardcoded.
 - All HTTP calls in Angular go through a dedicated service class, never directly in components.
 - Shared contracts belong in `shared/` or are generated into that area.
+- Backend DTOs are normalized internal contracts, not raw Kalshi payload mirrors.
+- When a documented Kalshi field is added to a normalized DTO, update backend tests and regenerate the frontend OpenAPI-derived types before wiring new UI behavior.
 
 ---
 
@@ -633,6 +697,7 @@ The following may be considered later, but are not assumed to be core V1 require
 - direct Kalshi HTTP/WebSocket calls from frontend
 - business orchestration logic inside visual components
 - hardcoded backend origins in components or feature code
+- refetching backend data for pure client-side sort/filter changes when the needed data is already loaded
 
 ### Python
 - `pip install` commands
@@ -645,6 +710,8 @@ The following may be considered later, but are not assumed to be core V1 require
 - permissive CORS defaults without explicit configuration
 - giant all-in-one exchange utility modules
 - leaking raw vendor payloads as the stable internal application contract
+- inventing Kalshi field names or aliases without checking the public docs
+- per-item Kalshi fan-out when a documented bulk endpoint already returns the required field
 
 ### General
 - `any` TypeScript type
@@ -689,10 +756,12 @@ When generating code for this repo:
 9. prefer modular monolith patterns over premature service splitting
 10. do not introduce new frameworks, infra, or patterns without clear justification
 11. keep local Docker, proxy, and CORS behavior compatible with localhost-based browser testing
-12. respect the current scaffold phase and do not jump ahead into business logic or speculative features
+12. respect the current discovery/catalog phase and do not jump ahead into trading logic or speculative features
 13. prefer scoped subscriptions over subscribe-all behavior
 14. treat REST as seed/repair/verify/write, not as the default live-state transport
 15. protect write capacity and do not allow optional reads to erode it
 16. keep vendor SDK usage optional and replaceable
 17. normalize external payloads before broad application use
 18. keep transport, scheduling, reconciliation, and orchestration concerns separated
+19. treat `docs.kalshi.com` as the source of truth for Kalshi parameter names and response fields
+20. prefer bulk documented reads plus Redis caching over avoidable repeated upstream calls in discovery flows
