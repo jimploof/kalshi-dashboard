@@ -7,6 +7,7 @@ the exception of the series list which is cached in Redis for 15 minutes
 Routes:
     GET /api/catalog/categories       — distinct categories + series count
     GET /api/catalog/series           — series list, filterable by category
+    GET /api/catalog/events/live      — live/imminent events (markets closing within window)
     GET /api/catalog/events           — paginated events, live from Kalshi
     GET /api/catalog/events/{ticker}  — single event + nested markets
     GET /api/catalog/markets/{ticker} — single market detail
@@ -21,7 +22,7 @@ Navigation flow:
 
 import asyncio
 import logging
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Literal
 
 import httpx
@@ -106,6 +107,34 @@ class CatalogEventDetailResponse(BaseModel):
 class CatalogMarketDetailResponse(BaseModel):
     status: Literal["success", "not_found", "upstream_failure"]
     market: MarketDetailDTO | None = None
+
+
+class LiveEventSummaryDTO(BaseModel):
+    """Slim event summary for the side-nav Live Events panel.
+
+    nearest_close_time is the earliest UTC close time of any market in this
+    event that falls within the requested window.  first_market_ticker is the
+    ticker for that market, allowing direct navigation to the market view.
+
+    Kalshi does not expose a dedicated "live" status — live events are defined
+    here as open events with at least one market closing within window_hours,
+    which is a reliable proxy for events actively happening right now.
+    """
+
+    event_ticker: str
+    series_ticker: str | None = None
+    title: str | None = None
+    sub_title: str | None = None
+    category: str | None = None
+    nearest_close_time: datetime | None = None
+    first_market_ticker: str | None = None
+
+
+class LiveEventsResponse(BaseModel):
+    status: Literal["success", "upstream_failure"]
+    events: list[LiveEventSummaryDTO]
+    window_hours: int
+    fetched_at: datetime
 
 
 async def _refresh_event_card_snapshot(app: Request, redis: RedisDep, client: KalshiClientDep) -> None:
@@ -425,6 +454,128 @@ async def get_events(
         events=events,
         cursor=raw.get("cursor") or None,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/catalog/events/live
+# NOTE: must be registered before GET /catalog/events/{ticker} so FastAPI
+# does not incorrectly route "live" as a dynamic ticker parameter.
+# ---------------------------------------------------------------------------
+
+_LIVE_EVENTS_CACHE_KEY_PREFIX = "catalog:live_events"
+_LIVE_EVENTS_CACHE_TTL = 120  # seconds
+
+
+@router.get("/catalog/events/live", response_model=LiveEventsResponse)
+async def get_live_events(
+    client: KalshiClientDep,
+    redis: RedisDep,
+    response: Response,
+    window_hours: int = Query(
+        default=24,
+        ge=1,
+        le=72,
+        description=(
+            "Include events with at least one market closing within this many hours. "
+            "Default 24h is a reliable proxy for events actively happening right now."
+        ),
+    ),
+) -> LiveEventsResponse:
+    """Return open Kalshi events with at least one market closing within window_hours.
+
+    Kalshi does not expose a dedicated 'live' endpoint — the 'open' status
+    covers all currently tradeable events, many of which resolve weeks away.
+    This endpoint narrows that set to events whose nearest market close falls
+    within window_hours, which reliably identifies sports games, crypto
+    expirations, and other events actively happening right now.
+
+    Sorted by nearest_close_time ascending (most time-sensitive first).
+    Results are cached in Redis for two minutes to avoid hammering Kalshi
+    during repeated side-nav refreshes.
+
+    Returns 502 on upstream failures.
+    """
+    cache_key = f"{_LIVE_EVENTS_CACHE_KEY_PREFIX}:{window_hours}"
+    cached = await redis.get(cache_key)
+    if cached:
+        return LiveEventsResponse.model_validate_json(cached)
+
+    now = datetime.now(tz=timezone.utc)
+    cutoff = datetime.fromtimestamp(
+        now.timestamp() + window_hours * 3600, tz=timezone.utc
+    )
+
+    try:
+        raw = await client.get_events(
+            status="open",
+            limit=200,
+            with_nested_markets=True,
+            min_close_ts=int(now.timestamp()),
+        )
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        logger.warning("Kalshi /events HTTP %d for live events: %s", code, exc.request.url)
+        response.status_code = 502
+        return LiveEventsResponse(
+            status="upstream_failure",
+            events=[],
+            window_hours=window_hours,
+            fetched_at=now,
+        )
+    except httpx.RequestError as exc:
+        logger.warning("Kalshi /events network error for live events: %s", exc)
+        response.status_code = 502
+        return LiveEventsResponse(
+            status="upstream_failure",
+            events=[],
+            window_hours=window_hours,
+            fetched_at=now,
+        )
+
+    live_summaries: list[LiveEventSummaryDTO] = []
+    for e in raw.get("events") or []:
+        nearest_dt: datetime | None = None
+        nearest_ticker: str | None = None
+
+        for m in e.get("markets") or []:
+            ct_raw = m.get("close_time")
+            if not ct_raw:
+                continue
+            try:
+                ct = datetime.fromisoformat(ct_raw.replace("Z", "+00:00"))
+            except ValueError:
+                logger.debug("Unparseable close_time %r for market %s", ct_raw, m.get("ticker"))
+                continue
+            if now < ct <= cutoff:
+                if nearest_dt is None or ct < nearest_dt:
+                    nearest_dt = ct
+                    nearest_ticker = m.get("ticker")
+
+        if nearest_dt is None:
+            continue
+
+        live_summaries.append(
+            LiveEventSummaryDTO(
+                event_ticker=e["event_ticker"],
+                series_ticker=e.get("series_ticker"),
+                title=e.get("title"),
+                sub_title=e.get("sub_title"),
+                category=e.get("category"),
+                nearest_close_time=nearest_dt,
+                first_market_ticker=nearest_ticker,
+            )
+        )
+
+    live_summaries.sort(key=lambda s: s.nearest_close_time or datetime.max.replace(tzinfo=timezone.utc))
+
+    result = LiveEventsResponse(
+        status="success",
+        events=live_summaries[:50],
+        window_hours=window_hours,
+        fetched_at=now,
+    )
+    await redis.set(cache_key, result.model_dump_json(), ex=_LIVE_EVENTS_CACHE_TTL)
+    return result
 
 
 # ---------------------------------------------------------------------------

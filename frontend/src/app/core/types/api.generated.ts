@@ -318,6 +318,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/catalog/events/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Live Events
+         * @description Return open Kalshi events with at least one market closing within window_hours.
+         *
+         *     Kalshi does not expose a dedicated 'live' endpoint — the 'open' status
+         *     covers all currently tradeable events, many of which resolve weeks away.
+         *     This endpoint narrows that set to events whose nearest market close falls
+         *     within window_hours, which reliably identifies sports games, crypto
+         *     expirations, and other events actively happening right now.
+         *
+         *     Sorted by nearest_close_time ascending (most time-sensitive first).
+         *     Results are cached in Redis for two minutes to avoid hammering Kalshi
+         *     during repeated side-nav refreshes.
+         *
+         *     Returns 502 on upstream failures.
+         */
+        get: operations["get_live_events_api_catalog_events_live_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/catalog/events/{ticker}": {
         parameters: {
             query?: never;
@@ -371,6 +403,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/debug/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Debug Status
+         * @description Return live debug metrics.
+         *
+         *     Returns 403 when DEBUG_MODE is not enabled.  No metrics are included in
+         *     the 403 body so that this endpoint reveals nothing about production state.
+         */
+        get: operations["get_debug_status_api_debug_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/{ticker}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Market View
+         * @description Return full market detail for the trading view panel.
+         *
+         *     Fetches the single-market endpoint from Kalshi and normalises the response
+         *     into a ``MarketDetailDTO``.  This is the REST bootstrap call for the
+         *     trading view — live updates arrive over the WS endpoint.
+         */
+        get: operations["get_market_view_api_market__ticker__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/{ticker}/candlesticks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Market Candlesticks
+         * @description Return OHLCV candlestick history for charting.
+         *
+         *     Proxies the Kalshi
+         *     ``GET /series/{series_ticker}/markets/{ticker}/candlesticks`` endpoint and
+         *     normalises the response.  The ``series_ticker`` query parameter is required
+         *     because Kalshi routes the candlestick call through the series hierarchy.
+         *
+         *     Prices in the response are raw cent integers (0–100).
+         */
+        get: operations["get_market_candlesticks_api_market__ticker__candlesticks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/market/{ticker}/orderbook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Market Orderbook
+         * @description Return current order book depth for a market.
+         *
+         *     Prices are integers in cents (0–100).  ``yes`` levels are sorted descending
+         *     (best YES bid at index 0).  ``no`` levels are sorted descending (best NO
+         *     bid at index 0, equivalent to the lowest YES ask).
+         */
+        get: operations["get_market_orderbook_api_market__ticker__orderbook_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/markets/": {
         parameters: {
             query?: never;
@@ -395,6 +525,46 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * CandlestickDTO
+         * @description Single OHLCV candlestick bar.
+         *
+         *     Prices are raw cent values (0–100 integer range) matching the Kalshi API.
+         *     ``ts`` is the ``end_period_ts`` field from the Kalshi response (Unix seconds).
+         */
+        CandlestickDTO: {
+            /** Ts */
+            ts: number;
+            /** Open */
+            open: number;
+            /** High */
+            high: number;
+            /** Low */
+            low: number;
+            /** Close */
+            close: number;
+            /** Volume */
+            volume: number;
+        };
+        /**
+         * CandlesticksResponse
+         * @description Response for GET /api/market/{ticker}/candlesticks.
+         */
+        CandlesticksResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "not_found" | "upstream_failure";
+            /** Ticker */
+            ticker: string;
+            /** Series Ticker */
+            series_ticker: string;
+            /** Period Interval */
+            period_interval: number;
+            /** Candlesticks */
+            candlesticks: components["schemas"]["CandlestickDTO"][];
+        };
         /** CatalogEventCardsResponse */
         CatalogEventCardsResponse: {
             /**
@@ -475,6 +645,31 @@ export interface components {
             postgres: boolean;
             /** Redis */
             redis: boolean;
+        };
+        /** DebugStatusResponse */
+        DebugStatusResponse: {
+            /** Debug Mode */
+            debug_mode: boolean;
+            /** Server Time Utc */
+            server_time_utc: string;
+            /** Event Card Refresh In Progress */
+            event_card_refresh_in_progress: boolean;
+            /** Snapshot Metrics */
+            snapshot_metrics: {
+                [key: string]: unknown;
+            } | null;
+            /** Recent Kalshi Calls */
+            recent_kalshi_calls: {
+                [key: string]: unknown;
+            }[];
+            /** Recent Cache Lookups */
+            recent_cache_lookups: {
+                [key: string]: unknown;
+            }[];
+            /** Snapshot Builds */
+            snapshot_builds: {
+                [key: string]: unknown;
+            }[];
         };
         /** DependencyChecks */
         DependencyChecks: {
@@ -662,6 +857,51 @@ export interface components {
             series: components["schemas"]["SeriesDTO"][];
         };
         /**
+         * LiveEventSummaryDTO
+         * @description Slim event summary for the side-nav Live Events panel.
+         *
+         *     nearest_close_time is the earliest UTC close time of any market in this
+         *     event that falls within the requested window.  first_market_ticker is the
+         *     ticker for that market, allowing direct navigation to the market view.
+         *
+         *     Kalshi does not expose a dedicated "live" status — live events are defined
+         *     here as open events with at least one market closing within window_hours,
+         *     which is a reliable proxy for events actively happening right now.
+         */
+        LiveEventSummaryDTO: {
+            /** Event Ticker */
+            event_ticker: string;
+            /** Series Ticker */
+            series_ticker?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Sub Title */
+            sub_title?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Nearest Close Time */
+            nearest_close_time?: string | null;
+            /** First Market Ticker */
+            first_market_ticker?: string | null;
+        };
+        /** LiveEventsResponse */
+        LiveEventsResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "upstream_failure";
+            /** Events */
+            events: components["schemas"]["LiveEventSummaryDTO"][];
+            /** Window Hours */
+            window_hours: number;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+        };
+        /**
          * MarketDTO
          * @description Browse-focused internal market representation.
          *
@@ -677,6 +917,8 @@ export interface components {
         MarketDTO: {
             /** Ticker */
             ticker: string;
+            /** Series Ticker */
+            series_ticker?: string | null;
             /** Event Ticker */
             event_ticker?: string | null;
             /** Market Type */
@@ -691,6 +933,8 @@ export interface components {
             subtitle?: string | null;
             /** Status */
             status?: string | null;
+            /** Result */
+            result?: string | null;
             /** Open Time */
             open_time?: string | null;
             /** Close Time */
@@ -723,6 +967,8 @@ export interface components {
         MarketDetailDTO: {
             /** Ticker */
             ticker: string;
+            /** Series Ticker */
+            series_ticker?: string | null;
             /** Event Ticker */
             event_ticker?: string | null;
             /** Market Type */
@@ -737,6 +983,8 @@ export interface components {
             subtitle?: string | null;
             /** Status */
             status?: string | null;
+            /** Result */
+            result?: string | null;
             /** Open Time */
             open_time?: string | null;
             /** Close Time */
@@ -780,6 +1028,18 @@ export interface components {
             /** Fractional Trading Enabled */
             fractional_trading_enabled?: boolean | null;
         };
+        /**
+         * MarketViewResponse
+         * @description Response for GET /api/market/{ticker}.
+         */
+        MarketViewResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "not_found" | "upstream_failure";
+            market?: components["schemas"]["MarketDetailDTO"] | null;
+        };
         /** MarketsPlaceholderResponse */
         MarketsPlaceholderResponse: {
             /** Status */
@@ -789,6 +1049,38 @@ export interface components {
             /** Markets */
             markets: string[];
             connections: components["schemas"]["ConnectionStatus"];
+        };
+        /**
+         * OrderbookLevelDTO
+         * @description Single price level in the order book.
+         *
+         *     ``price`` is in cents (0–100).
+         */
+        OrderbookLevelDTO: {
+            /** Price */
+            price: number;
+            /** Quantity */
+            quantity: number;
+        };
+        /**
+         * OrderbookResponse
+         * @description Response for GET /api/market/{ticker}/orderbook.
+         *
+         *     ``yes`` levels are sorted descending (best YES bid first).
+         *     ``no`` levels are sorted descending (best NO bid first).
+         */
+        OrderbookResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "success" | "not_found" | "upstream_failure";
+            /** Ticker */
+            ticker: string;
+            /** Yes */
+            yes: components["schemas"]["OrderbookLevelDTO"][];
+            /** No */
+            no: components["schemas"]["OrderbookLevelDTO"][];
         };
         /** ReadinessResponse */
         ReadinessResponse: {
@@ -1221,6 +1513,38 @@ export interface operations {
             };
         };
     };
+    get_live_events_api_catalog_events_live_get: {
+        parameters: {
+            query?: {
+                /** @description Include events with at least one market closing within this many hours. Default 24h is a reliable proxy for events actively happening right now. */
+                window_hours?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveEventsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_event_detail_api_catalog_events__ticker__get: {
         parameters: {
             query?: never;
@@ -1270,6 +1594,131 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CatalogMarketDetailResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_debug_status_api_debug_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DebugStatusResponse"];
+                };
+            };
+        };
+    };
+    get_market_view_api_market__ticker__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketViewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_market_candlesticks_api_market__ticker__candlesticks_get: {
+        parameters: {
+            query: {
+                /** @description Series ticker for this market (e.g. KXBTC) */
+                series_ticker: string;
+                /** @description Range start (Unix seconds) */
+                start_ts: number;
+                /** @description Range end (Unix seconds) */
+                end_ts: number;
+                /** @description Candle width in minutes */
+                period_interval?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandlesticksResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_market_orderbook_api_market__ticker__orderbook_get: {
+        parameters: {
+            query?: {
+                /** @description Price levels per side */
+                depth?: number;
+            };
+            header?: never;
+            path: {
+                ticker: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderbookResponse"];
                 };
             };
             /** @description Validation Error */

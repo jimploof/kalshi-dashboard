@@ -12,6 +12,7 @@ from app.services.catalog.event_card_cache import set_event_card_snapshot
 from app.services.catalog.event_card_snapshot import build_event_card_snapshot
 from app.services.kalshi.rate_limiter import RateLimiter
 from app.services.kalshi.rest_client import KalshiRestClient
+from app.services.kalshi.ws_manager import KalshiWsManager
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     app.state.event_card_prewarm_task = asyncio.create_task(prewarm_event_cards())
 
+    # Kalshi WebSocket manager — starts the authenticated background connection.
+    # Only started when credentials are configured; the manager handles its own
+    # reconnection so this is fire-and-forget from the lifespan.
+    if settings.kalshi_api_key_id and settings.kalshi_private_key_path:
+        app.state.ws_manager = KalshiWsManager(settings)
+        await app.state.ws_manager.start()
+        logger.info("Kalshi WS manager started.")
+    else:
+        app.state.ws_manager = None
+        logger.info("Kalshi WS manager not started — credentials not configured.")
+
     logger.info("Startup complete — all dependencies ready.")
     yield
 
@@ -102,6 +114,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     refresh_task = getattr(app.state, "event_card_refresh_task", None)
     if refresh_task is not None and not refresh_task.done():
         refresh_task.cancel()
+    ws_manager = getattr(app.state, "ws_manager", None)
+    if ws_manager is not None:
+        await ws_manager.stop()
     await app.state.pg_pool.close()
     await app.state.redis.aclose()
     logger.info("Shutdown complete.")

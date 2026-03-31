@@ -375,3 +375,67 @@ class KalshiRestClient:
             params["include_volume"] = "true"
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
         return await self._tracked_get(endpoint, headers, params)
+
+    async def get_candlesticks(
+        self,
+        series_ticker: str,
+        market_ticker: str,
+        *,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int = 1,
+    ) -> dict:
+        """
+        GET /series/{series_ticker}/markets/{market_ticker}/candlesticks
+
+        Returns OHLCV candlestick data for charting.  Prices are in cents (0–100).
+
+        Args:
+            series_ticker:   Series the market belongs to (e.g. "KXBTC").
+            market_ticker:   The market ticker (e.g. "KXBTC-26MAR270000").
+            start_ts:        Start of range (Unix seconds).
+            end_ts:          End of range (Unix seconds).
+            period_interval: Candle period in minutes (1, 5, 60, etc.).
+
+        Returns the raw Kalshi response dict with key:
+          candlesticks (list of {end_period_ts, price: {open, high, low, close}, volume})
+
+        Documented: docs.kalshi.com/api-reference/series/get-candlesticks
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses.
+            httpx.RequestError:    on network/timeout errors.
+        """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
+        endpoint = f"/series/{series_ticker}/markets/{market_ticker}/candlesticks"
+        params: dict[str, int] = {
+            "start_ts": start_ts,
+            "end_ts": end_ts,
+            "period_interval": period_interval,
+        }
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+        return await self._tracked_get(endpoint, headers, params)
+
+    async def get_market_orderbook(self, ticker: str, *, depth: int = 10) -> dict:
+        """
+        GET /markets/{ticker}/orderbook — current order book depth.
+
+        Returns the raw Kalshi response dict with key:
+          orderbook: {yes: [[price_cents, quantity], ...], no: [[price_cents, quantity], ...]}
+
+        Prices are integers in cents (0–100).  YES levels are sorted descending
+        (best bid first); NO levels are sorted descending.
+
+        Documented: docs.kalshi.com/api-reference/market/get-market-orderbook
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses.
+            httpx.RequestError:    on network/timeout errors.
+        """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
+        endpoint = f"/markets/{ticker}/orderbook"
+        params: dict[str, int] = {"depth": depth}
+        headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+        return await self._tracked_get(endpoint, headers, params)

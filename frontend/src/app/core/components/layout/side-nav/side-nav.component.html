@@ -11,7 +11,54 @@
 
   <nav class="side-nav__nav">
 
-    <!-- ── CATALOG section ─────────────────────────────────────── -->
+    <!-- LIVE section -->
+    <div class="side-nav__group">
+      <button
+        class="side-nav__item side-nav__item--live"
+        [title]="collapsed() ? 'Live events' : ''"
+        (click)="!collapsed() && toggleLive()"
+      >
+        <span class="side-nav__live-dot"></span>
+        <ng-icon name="heroBolt" class="side-nav__icon" size="16px" />
+        @if (!collapsed()) {
+          <span class="side-nav__label">Live</span>
+          @if (!liveLoading() && liveEvents().length > 0) {
+            <span class="side-nav__live-count">{{ liveEvents().length }}</span>
+          }
+          <ng-icon
+            [name]="liveExpanded() ? 'heroChevronDown' : 'heroChevronRight'"
+            class="side-nav__chevron"
+            size="12px"
+          />
+        }
+      </button>
+
+      @if (!collapsed() && liveExpanded()) {
+        <div class="side-nav__children">
+          @if (liveLoading()) {
+            @for (i of [1, 2, 3]; track i) {
+              <div class="side-nav__cat-skeleton skeleton"></div>
+            }
+          } @else if (liveEvents().length === 0) {
+            <p class="side-nav__live-empty">No live events right now</p>
+          } @else {
+            @for (event of liveEvents(); track event.event_ticker) {
+              <button
+                class="side-nav__live-item"
+                (click)="selectLiveEvent(event)"
+                [title]="event.title ?? event.event_ticker"
+              >
+                <span class="side-nav__live-pulse"></span>
+                <span class="side-nav__live-name">{{ event.title ?? event.event_ticker }}</span>
+                <span class="side-nav__live-time">{{ timeUntil(event.nearest_close_time) }}</span>
+              </button>
+            }
+          }
+        </div>
+      }
+    </div>
+
+    <!-- CATALOG section -->
     <div class="side-nav__group">
       <a
         routerLink="/catalog"
@@ -54,7 +101,7 @@
       }
     </div>
 
-    <!-- ── Future items ──────────────────────────────────────────── -->
+    <!-- Future items -->
     <div class="side-nav__group side-nav__group--future">
       <button
         class="side-nav__item side-nav__item--disabled"

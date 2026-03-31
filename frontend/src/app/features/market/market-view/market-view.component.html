@@ -1,0 +1,247 @@
+<div class="market-view">
+
+  <!-- ── Header bar ────────────────────────────────────────────────────────── -->
+  <div class="market-view__header">
+    <button class="market-view__back" type="button" (click)="goBack()">
+      ← Catalog
+    </button>
+
+    @if (marketLoading()) {
+      <span class="market-view__loading-label">Loading…</span>
+    } @else if (market()) {
+      <div class="market-view__identity">
+        <span class="market-view__ticker">{{ market()!.ticker }}</span>
+        <span class="market-view__title">{{ marketTitle() }}</span>
+        <span class="badge {{ statusClass() }}">{{ market()!.status ?? 'unknown' }}</span>
+        @if (market()!.result && market()!.result !== '') {
+          <span class="badge market-view__result">{{ market()!.result }}</span>
+        }
+      </div>
+      <div class="market-view__live">
+        <div class="market-view__price-block">
+          <span class="market-view__price-label">YES</span>
+          <span class="market-view__bid">{{ formatCents(displayBid()) }}</span>
+          <span class="market-view__sep">/</span>
+          <span class="market-view__ask">{{ formatCents(displayAsk()) }}</span>
+        </div>
+        <div class="market-view__last">Last: {{ formatCents(displayLast()) }}</div>
+        <div class="market-view__ws-dot" [class.connected]="wsService.connected()" title="{{ wsService.connected() ? 'Live' : 'Connecting…' }}"></div>
+      </div>
+    }
+  </div>
+
+  <!-- ── Stats bar ─────────────────────────────────────────────────────────── -->
+  @if (market()) {
+    <div class="market-view__stats">
+      <span class="stat">
+        <span class="stat__label">Volume</span>
+        <span class="stat__value mono">{{ formatFp(market()!.volume_fp) }}</span>
+      </span>
+      <span class="stat">
+        <span class="stat__label">24h Vol</span>
+        <span class="stat__value mono">{{ formatFp(market()!.volume_24h_fp) }}</span>
+      </span>
+      <span class="stat">
+        <span class="stat__label">Open Interest</span>
+        <span class="stat__value mono">{{ formatFp(market()!.open_interest_fp) }}</span>
+      </span>
+      <span class="stat">
+        <span class="stat__label">Close</span>
+        <span class="stat__value">{{ formatDate(market()!.close_time) }}</span>
+      </span>
+      <span class="stat">
+        <span class="stat__label">Series</span>
+        <span class="stat__value mono">{{ market()!.series_ticker ?? '—' }}</span>
+      </span>
+    </div>
+  }
+
+  <!-- ── Error state ────────────────────────────────────────────────────────── -->
+  @if (marketError()) {
+    <div class="market-view__error">
+      <span>{{ marketError() }}</span>
+      <button type="button" (click)="goBack()">← Back to Catalog</button>
+    </div>
+  }
+
+  <!-- ── Main content: chart + orderbook ───────────────────────────────────── -->
+  @if (market() && !marketError()) {
+    <div class="market-view__body">
+
+      <!-- Chart section -->
+      <div class="market-view__chart-panel">
+
+        <!-- Chart toolbar -->
+        <div class="chart-toolbar">
+          <div class="chart-toolbar__periods">
+            @for (opt of periodOptions; track opt.value) {
+              <button
+                class="chart-toolbar__btn"
+                [class.active]="periodInterval() === opt.value"
+                type="button"
+                (click)="setPeriod(opt.value)"
+              >{{ opt.label }}</button>
+            }
+          </div>
+          <div class="chart-toolbar__types">
+            <button
+              class="chart-toolbar__btn"
+              [class.active]="chartType() === 'auto'"
+              type="button"
+              (click)="setChartType('auto')"
+            >Auto</button>
+            <button
+              class="chart-toolbar__btn"
+              [class.active]="chartType() === 'candlestick'"
+              type="button"
+              (click)="setChartType('candlestick')"
+            >Candle</button>
+            <button
+              class="chart-toolbar__btn"
+              [class.active]="chartType() === 'line'"
+              type="button"
+              (click)="setChartType('line')"
+            >Line</button>
+          </div>
+          <div class="chart-toolbar__toggles">
+            <label class="toggle-label toggle-label--ema">
+              <input type="checkbox" [checked]="showEma()" (change)="showEma.set(!showEma())" />
+              EMA
+            </label>
+            <label class="toggle-label toggle-label--bid">
+              <input type="checkbox" [checked]="showBid()" (change)="showBid.set(!showBid())" />
+              Bid
+            </label>
+            <label class="toggle-label toggle-label--ask">
+              <input type="checkbox" [checked]="showAsk()" (change)="showAsk.set(!showAsk())" />
+              Ask
+            </label>
+            <label class="toggle-label toggle-label--support">
+              <input type="checkbox" [checked]="showSupport()" (change)="showSupport.set(!showSupport())" />
+              S
+            </label>
+            <label class="toggle-label toggle-label--resist">
+              <input type="checkbox" [checked]="showResist()" (change)="showResist.set(!showResist())" />
+              R
+            </label>
+            <label class="toggle-label toggle-label--vol">
+              <input type="checkbox" [checked]="showVolume()" (change)="showVolume.set(!showVolume())" />
+              Vol
+            </label>
+          </div>
+          @if (candlesLoading()) {
+            <span class="chart-toolbar__loading">Loading chart…</span>
+          }
+        </div>
+
+        <!-- TradingView Lightweight Chart -->
+        <div class="market-view__chart-wrap">
+          <app-market-chart
+            [candlesticks]="candlesticks()"
+            [yesBid]="displayBid()"
+            [yesAsk]="displayAsk()"
+            [chartType]="chartType()"
+            [livePrice]="wsService.lastPrice()"
+            [periodInterval]="periodInterval()"
+            [showEma]="showEma()"
+            [showBid]="showBid()"
+            [showAsk]="showAsk()"
+            [showSupport]="showSupport()"
+            [showResist]="showResist()"
+            [showVolume]="showVolume()"
+          />
+        </div>
+
+      </div>
+
+      <!-- Right panel: order book -->
+      <div class="market-view__ob-panel">
+        <div class="ob-header-row">
+          <span class="ob-title">Order Book</span>
+          @if (spread() !== null) {
+            <span class="ob-spread">Spread: {{ spread() }}¢</span>
+          }
+        </div>
+
+        <div class="ob-columns">
+          <!-- YES bids -->
+          <div class="ob-side ob-side--yes">
+            <div class="ob-col-header">
+              <span>YES Bid</span><span>Cts</span>
+            </div>
+            @if (yesBids().length === 0) {
+              <div class="ob-empty">Waiting for data…</div>
+            }
+            @let maxYes = maxYesQty();
+            @for (level of yesBids(); track level[0]) {
+              <div class="ob-row ob-row--yes" [style.--depth]="depthPct(level[1], maxYes)">
+                <span class="ob-price">{{ level[0] }}¢</span>
+                <span class="ob-qty mono">{{ level[1] | number:'1.0-0' }}</span>
+              </div>
+            }
+          </div>
+
+          <!-- NO bids -->
+          <div class="ob-side ob-side--no">
+            <div class="ob-col-header">
+              <span>NO Bid</span><span>Cts</span>
+            </div>
+            @if (noBids().length === 0) {
+              <div class="ob-empty">Waiting for data…</div>
+            }
+            @let maxNo = maxNoQty();
+            @for (level of noBids(); track level[0]) {
+              <div class="ob-row ob-row--no" [style.--depth]="depthPct(level[1], maxNo)">
+                <span class="ob-price">{{ level[0] }}¢</span>
+                <span class="ob-qty mono">{{ level[1] | number:'1.0-0' }}</span>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Market detail footer ─────────────────────────────────────────────── -->
+    <div class="market-view__footer">
+      <div class="market-view__rules">
+        @if (market()!.rules_primary) {
+          <div class="rules-block">
+            <span class="rules-label">Settlement Rules</span>
+            <span class="rules-text">{{ market()!.rules_primary }}</span>
+          </div>
+        }
+        @if (market()!.yes_sub_title) {
+          <div class="side-label side-label--yes">YES: {{ market()!.yes_sub_title }}</div>
+        }
+        @if (market()!.no_sub_title) {
+          <div class="side-label side-label--no">NO: {{ market()!.no_sub_title }}</div>
+        }
+        @if (market()!.floor_strike !== null || market()!.cap_strike !== null) {
+          <div class="strike-info">
+            @if (market()!.floor_strike !== null) {
+              <span>Floor: {{ market()!.floor_strike }}</span>
+            }
+            @if (market()!.cap_strike !== null) {
+              <span>Cap: {{ market()!.cap_strike }}</span>
+            }
+          </div>
+        }
+      </div>
+      @if (market()!.previous_yes_bid_dollars || market()!.previous_price_dollars) {
+        <div class="market-view__prev">
+          @if (market()!.previous_yes_bid_dollars) {
+            <span class="stat"><span class="stat__label">Prev Bid</span><span class="stat__value mono">{{ market()!.previous_yes_bid_dollars }}</span></span>
+          }
+          @if (market()!.previous_price_dollars) {
+            <span class="stat"><span class="stat__label">Prev Last</span><span class="stat__value mono">{{ market()!.previous_price_dollars }}</span></span>
+          }
+          @if (market()!.settlement_value_dollars) {
+            <span class="stat"><span class="stat__label">Settlement</span><span class="stat__value mono">{{ market()!.settlement_value_dollars }}</span></span>
+          }
+        </div>
+      }
+    </div>
+  }
+
+</div>

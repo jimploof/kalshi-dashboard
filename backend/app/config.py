@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Kalshi REST integration
     kalshi_api_base_url: str = "https://demo-api.kalshi.co/trade-api/v2"
+    kalshi_ws_url: str = "wss://demo-api.kalshi.co/trade-api/ws/v2"
     kalshi_env: str = "demo"
     kalshi_api_key_id: str | None = None
     # Path to the RSA private key .key file downloaded from Kalshi account settings.

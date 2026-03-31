@@ -18,6 +18,8 @@ export type CatalogEventDetailResponse  = components['schemas']['CatalogEventDet
 export type MarketDTO             = components['schemas']['MarketDTO'];
 export type MarketDetailDTO       = components['schemas']['MarketDetailDTO'];
 export type CatalogMarketDetailResponse = components['schemas']['CatalogMarketDetailResponse'];
+export type LiveEventsResponse    = components['schemas']['LiveEventsResponse'];
+export type LiveEventSummaryDTO   = components['schemas']['LiveEventSummaryDTO'];
 
 // ─── Sort types derived from the generated OpenAPI operation contract ─────────
 type _EventCardsQuery = operations['get_event_cards_api_catalog_event_cards_get']['parameters']['query'];
@@ -81,5 +83,9 @@ export class CatalogService {
 
   getMarketDetail(ticker: string): Observable<CatalogMarketDetailResponse> {
     return this.api.get<CatalogMarketDetailResponse>(`/catalog/markets/${encodeURIComponent(ticker)}`);
+  }
+
+  getLiveEvents(windowHours = 24): Observable<LiveEventsResponse> {
+    return this.api.get<LiveEventsResponse>(`/catalog/events/live?window_hours=${windowHours}`);
   }
 }

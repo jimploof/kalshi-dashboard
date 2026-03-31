@@ -133,6 +133,7 @@ class MarketDTO(BaseModel):
     """
 
     ticker: str
+    series_ticker: str | None = None       # series the market belongs to
     event_ticker: str | None = None
     market_type: str | None = None         # "binary" | "scalar"
     yes_sub_title: str | None = None       # short YES side label (non-deprecated)
@@ -140,6 +141,7 @@ class MarketDTO(BaseModel):
     title: str | None = None              # deprecated upstream; kept while still returned
     subtitle: str | None = None           # deprecated upstream; kept while still returned
     status: str | None = None
+    result: str | None = None             # settlement result: "yes" | "no" | "void" | "" for open
     open_time: datetime | None = None
     close_time: datetime | None = None
     yes_bid_dollars: str | None = None    # best YES bid price
@@ -151,16 +153,28 @@ class MarketDTO(BaseModel):
 
 
 def _map_market(raw: dict) -> MarketDTO:
-    """Normalise a raw upstream market object into a browse-focused MarketDTO."""
+    """Normalise a raw upstream market object into a browse-focused MarketDTO.
+
+    Kalshi's GET /markets/{ticker} often omits series_ticker from the response.
+    When it is absent, derive it from event_ticker (the first dash-delimited
+    segment), which is always present and follows the pattern SERIES-...
+    """
+    event_ticker: str | None = raw.get("event_ticker")
+    series_ticker: str | None = (
+        raw.get("series_ticker")
+        or (event_ticker.split("-")[0] if event_ticker else None)
+    )
     return MarketDTO(
         ticker=raw["ticker"],
-        event_ticker=raw.get("event_ticker"),
+        series_ticker=series_ticker,
+        event_ticker=event_ticker,
         market_type=raw.get("market_type"),
         yes_sub_title=raw.get("yes_sub_title"),
         no_sub_title=raw.get("no_sub_title"),
         title=raw.get("title"),
         subtitle=raw.get("subtitle"),
         status=raw.get("status"),
+        result=raw.get("result"),
         open_time=raw.get("open_time"),
         close_time=raw.get("close_time"),
         yes_bid_dollars=raw.get("yes_bid_dollars"),
@@ -179,16 +193,27 @@ def _map_market_detail(raw: dict) -> "MarketDetailDTO":
     and rules fields that are only present on the single-market GET response.
     Defined here (alongside ``_map_market``) so both catalog.py and the
     existing kalshi.py handler can import from a single location.
+
+    Kalshi's GET /markets/{ticker} often omits series_ticker from the response.
+    When it is absent, derive it from event_ticker (the first dash-delimited
+    segment), which is always present and follows the pattern SERIES-...
     """
+    event_ticker: str | None = raw.get("event_ticker")
+    series_ticker: str | None = (
+        raw.get("series_ticker")
+        or (event_ticker.split("-")[0] if event_ticker else None)
+    )
     return MarketDetailDTO(
         ticker=raw["ticker"],
-        event_ticker=raw.get("event_ticker"),
+        series_ticker=series_ticker,
+        event_ticker=event_ticker,
         market_type=raw.get("market_type"),
         yes_sub_title=raw.get("yes_sub_title"),
         no_sub_title=raw.get("no_sub_title"),
         title=raw.get("title"),
         subtitle=raw.get("subtitle"),
         status=raw.get("status"),
+        result=raw.get("result"),
         open_time=raw.get("open_time"),
         close_time=raw.get("close_time"),
         yes_bid_dollars=raw.get("yes_bid_dollars"),

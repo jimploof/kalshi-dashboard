@@ -7,19 +7,18 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import { EMPTY, catchError, switchMap, take } from 'rxjs';
 
 import {
   CatalogService,
   EventCardSortBy,
   EventCardSummaryDTO,
-  MarketDetailDTO,
   MarketDTO,
   SortOrder,
 } from './catalog.service';
 import { CatalogStateService } from './catalog-state.service';
 import { EventCardListComponent } from './components/event-card-list/event-card-list.component';
-import { MarketDetailModalComponent } from './components/market-detail-modal/market-detail-modal.component';
 import { MarketListComponent } from './components/market-list/market-list.component';
 
 type CatalogView = 'welcome' | 'event-cards' | 'markets';
@@ -46,7 +45,6 @@ const SORT_OPTIONS: readonly SortOption[] = [
   imports: [
     EventCardListComponent,
     MarketListComponent,
-    MarketDetailModalComponent,
   ],
   templateUrl: './catalog.component.html',
   styleUrl: './catalog.component.scss',
@@ -55,6 +53,7 @@ const SORT_OPTIONS: readonly SortOption[] = [
 export class CatalogComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly service    = inject(CatalogService);
+  private readonly router     = inject(Router);
   readonly state              = inject(CatalogStateService);
 
   // ── Sort state ─────────────────────────────────────────────────────────────
@@ -82,10 +81,6 @@ export class CatalogComponent {
   // ── Markets drill-in signals ───────────────────────────────────────────────
   readonly markets        = signal<readonly MarketDTO[]>([]);
   readonly marketsLoading = signal(false);
-
-  // ── Modal signals ──────────────────────────────────────────────────────────
-  readonly modalMarket = signal<MarketDetailDTO | null>(null);
-  readonly modalOpen   = signal(false);
 
   // ── View ───────────────────────────────────────────────────────────────────
   readonly currentView = computed<CatalogView>(() => {
@@ -177,18 +172,8 @@ export class CatalogComponent {
   }
 
   onMarketSelected(ticker: string): void {
-    this.service.getMarketDetail(ticker).pipe(
-      take(1),
-    ).subscribe(r => {
-      if (r.market) {
-        this.modalMarket.set(r.market);
-        this.modalOpen.set(true);
-      }
-    });
+    this.router.navigate(['/market', ticker]);
   }
 
-  closeModal(): void {
-    this.modalOpen.set(false);
-    this.modalMarket.set(null);
-  }
+  // closeModal is no longer used (modal replaced by market view route).
 }
