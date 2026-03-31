@@ -501,3 +501,47 @@
   gap: 14px;
   flex-shrink: 0;
 }
+
+// ── Chart mode separator ──────────────────────────────────────────────────────
+
+.chart-toolbar__sep {
+  color: #30363d;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+
+.chart-toolbar__btn--mode {
+  font-weight: 600;
+}
+
+// ── Event chart legend ────────────────────────────────────────────────────────
+
+.event-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  padding: 5px 10px;
+  background: #161b22;
+  border-top: 1px solid #21262d;
+  flex-shrink: 0;
+}
+
+.event-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #c9d1d9;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.event-legend__swatch {
+  display: inline-block;
+  width: 16px;
+  height: 3px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}

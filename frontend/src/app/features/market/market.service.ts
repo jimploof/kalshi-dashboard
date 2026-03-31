@@ -94,6 +94,37 @@ export type OrderbookResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Event outcome DTOs (multi-outcome chart)
+// ---------------------------------------------------------------------------
+
+export type EventOutcomeDTO = {
+  readonly ticker: string;
+  readonly yes_sub_title: string | null;
+  readonly last_price_dollars: string | null;
+  readonly status: string | null;
+};
+
+export type EventOutcomesResponse = {
+  readonly status: string;
+  readonly event_ticker: string;
+  readonly title: string | null;
+  readonly mutually_exclusive: boolean | null;
+  readonly outcomes: readonly EventOutcomeDTO[];
+};
+
+export type OutcomeCandlesticks = {
+  readonly ticker: string;
+  readonly candlesticks: readonly CandlestickDTO[];
+};
+
+export type EventCandlesticksResponse = {
+  readonly status: string;
+  readonly event_ticker: string;
+  readonly period_interval: number;
+  readonly outcomes: readonly OutcomeCandlesticks[];
+};
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -134,6 +165,35 @@ export class MarketService {
   getOrderbook(ticker: string, depth = 20): Observable<OrderbookResponse> {
     return this.api.get<OrderbookResponse>(
       `/market/${encodeURIComponent(ticker)}/orderbook?depth=${depth}`,
+    );
+  }
+
+  /** Sibling market outcomes within an event, sorted by price descending. */
+  getEventOutcomes(eventTicker: string): Observable<EventOutcomesResponse> {
+    return this.api.get<EventOutcomesResponse>(
+      `/market/event/${encodeURIComponent(eventTicker)}/outcomes`,
+    );
+  }
+
+  /** Batch candlestick fetch for multiple outcomes in an event. */
+  getEventCandlesticks(
+    eventTicker: string,
+    opts: {
+      readonly tickers: readonly string[];
+      readonly startTs: number;
+      readonly endTs: number;
+      readonly periodInterval?: number;
+    },
+  ): Observable<EventCandlesticksResponse> {
+    const params = new URLSearchParams();
+    params.set('tickers', opts.tickers.join(','));
+    params.set('start_ts', String(opts.startTs));
+    params.set('end_ts', String(opts.endTs));
+    if (opts.periodInterval !== undefined) {
+      params.set('period_interval', String(opts.periodInterval));
+    }
+    return this.api.get<EventCandlesticksResponse>(
+      `/market/event/${encodeURIComponent(eventTicker)}/candlesticks?${params.toString()}`,
     );
   }
 }

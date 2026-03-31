@@ -23,11 +23,14 @@ import {
 import { DecimalPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { EMPTY, catchError, take } from 'rxjs';
+import { EMPTY, catchError, forkJoin, take } from 'rxjs';
 
 import { MarketService, CandlestickDTO, MarketViewDTO } from '../market.service';
 import { MarketWsService } from '../market-ws.service';
 import { MarketChartComponent, ChartType } from '../market-chart/market-chart.component';
+import { EventChartComponent, OutcomeLine, outcomeColor } from '../event-chart/event-chart.component';
+
+export type ChartMode = 'market' | 'event';
 
 // How many hours of history to load per period option.
 const PERIOD_HOURS: Record<number, number> = {
@@ -40,7 +43,7 @@ const PERIOD_HOURS: Record<number, number> = {
 @Component({
   selector: 'app-market-view',
   standalone: true,
-  imports: [MarketChartComponent, DecimalPipe],
+  imports: [MarketChartComponent, EventChartComponent, DecimalPipe],
   providers: [MarketWsService],
   templateUrl: './market-view.component.html',
   styleUrl: './market-view.component.scss',
@@ -75,6 +78,13 @@ export class MarketViewComponent implements OnInit {
   readonly showSupport  = signal(true);
   readonly showResist   = signal(true);
   readonly showVolume   = signal(true);
+
+  // ── Event chart (multi-outcome) state ─────────────────────────────────────
+  readonly chartMode        = signal<ChartMode>('market');
+  readonly eventOutcomes    = signal<readonly OutcomeLine[]>([]);
+  readonly eventLoading     = signal(false);
+  /** Whether the current market's event has >1 outcome (enables Event toggle). */
+  readonly hasMultipleOutcomes = signal(false);
 
   // ── Period selector options ───────────────────────────────────────────────
   readonly periodOptions = [
@@ -164,13 +174,25 @@ export class MarketViewComponent implements OnInit {
   setPeriod(minutes: number): void {
     this.periodInterval.set(minutes);
     const m = this.market();
-    if (m?.series_ticker) {
+    if (this.chartMode() === 'event') {
+      // Re-fetch event chart data with new period.
+      if (this.eventOutcomes().length > 0) {
+        this.loadEventChart();
+      }
+    } else if (m?.series_ticker) {
       this.loadCandlesticks(m.ticker, m.series_ticker, minutes);
     }
   }
 
   setChartType(type: ChartType): void {
     this.chartType.set(type);
+  }
+
+  setChartMode(mode: ChartMode): void {
+    this.chartMode.set(mode);
+    if (mode === 'event' && this.eventOutcomes().length === 0) {
+      this.loadEventChart();
+    }
   }
 
   formatCents(cents: number | null): string {
@@ -202,6 +224,9 @@ export class MarketViewComponent implements OnInit {
     this.marketError.set(null);
     this.market.set(null);
     this.candlesticks.set([]);
+    this.chartMode.set('market');
+    this.eventOutcomes.set([]);
+    this.hasMultipleOutcomes.set(false);
 
     this.marketSvc.getMarket(ticker).pipe(
       take(1),
@@ -235,6 +260,18 @@ export class MarketViewComponent implements OnInit {
         if (r.market.series_ticker) {
           this.loadCandlesticks(ticker, r.market.series_ticker, this.periodInterval());
         }
+        // Detect multi-outcome events for the Event chart toggle.
+        if (r.market.event_ticker) {
+          this.marketSvc.getEventOutcomes(r.market.event_ticker).pipe(
+            take(1),
+            catchError(() => EMPTY),
+            takeUntilDestroyed(this.destroyRef),
+          ).subscribe(ev => {
+            if (ev.status === 'success' && ev.outcomes.length > 1) {
+              this.hasMultipleOutcomes.set(true);
+            }
+          });
+        }
       } else if (r.status === 'not_found') {
         this.marketError.set(`Market "${ticker}" not found.`);
       } else {
@@ -266,6 +303,71 @@ export class MarketViewComponent implements OnInit {
       if (r.status === 'success') {
         this.candlesticks.set(r.candlesticks);
       }
+    });
+  }
+
+  /** Max outcomes to display on the event chart. */
+  private static readonly MAX_OUTCOMES = 4;
+
+  private loadEventChart(): void {
+    const m = this.market();
+    if (!m?.event_ticker) return;
+
+    this.eventLoading.set(true);
+
+    this.marketSvc.getEventOutcomes(m.event_ticker).pipe(
+      take(1),
+      catchError(() => {
+        this.eventLoading.set(false);
+        return EMPTY;
+      }),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(ev => {
+      if (ev.status !== 'success' || ev.outcomes.length === 0) {
+        this.eventLoading.set(false);
+        return;
+      }
+
+      // Take top N outcomes by price (already sorted desc from backend).
+      const topOutcomes = ev.outcomes.slice(
+        0, MarketViewComponent.MAX_OUTCOMES,
+      );
+      const tickers = topOutcomes.map(o => o.ticker);
+
+      const periodMinutes = this.periodInterval();
+      const hoursBack = PERIOD_HOURS[periodMinutes] ?? 24;
+      const endTs = Math.floor(Date.now() / 1000);
+      const startTs = endTs - hoursBack * 3600;
+
+      this.marketSvc.getEventCandlesticks(m.event_ticker!, {
+        tickers,
+        startTs,
+        endTs,
+        periodInterval: periodMinutes,
+      }).pipe(
+        take(1),
+        catchError(() => {
+          this.eventLoading.set(false);
+          return EMPTY;
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      ).subscribe(cr => {
+        this.eventLoading.set(false);
+        if (cr.status !== 'success') return;
+
+        // Build OutcomeLine array by matching candlestick data to outcomes.
+        const candleMap = new Map(
+          cr.outcomes.map(o => [o.ticker, o.candlesticks]),
+        );
+        const lines: OutcomeLine[] = topOutcomes.map((o, i) => ({
+          ticker: o.ticker,
+          label: o.yes_sub_title ?? o.ticker,
+          color: outcomeColor(i),
+          candlesticks: candleMap.get(o.ticker) ?? [],
+        }));
+
+        this.eventOutcomes.set(lines);
+      });
     });
   }
 }

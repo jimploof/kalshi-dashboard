@@ -5,6 +5,8 @@ REST endpoints (mounted at /api):
   GET /api/market/{ticker}                  — full market detail (REST snapshot)
   GET /api/market/{ticker}/candlesticks     — OHLCV candlestick history for charting
   GET /api/market/{ticker}/orderbook        — current order book depth
+  GET /api/market/event/{event_ticker}/outcomes       — sibling markets for an event
+  GET /api/market/event/{event_ticker}/candlesticks   — batch candlestick fetch for event outcomes
 
 WebSocket endpoint (mounted at /ws):
   WS  /ws/market/{ticker}                   — live ticker + orderbook stream
@@ -18,6 +20,7 @@ messages (orderbook_snapshot, orderbook_delta, ticker updates) to all
 registered frontend connections for that market.
 """
 
+import asyncio
 import logging
 from typing import Literal
 
@@ -278,6 +281,196 @@ async def get_market_orderbook(
         ticker=ticker,
         yes=yes_levels,
         no=no_levels,
+    )
+
+
+# ---------------------------------------------------------------------------
+# REST: GET /api/market/event/{event_ticker}/outcomes
+# ---------------------------------------------------------------------------
+
+
+class EventOutcomeDTO(BaseModel):
+    """Summary of a single market/outcome within an event."""
+
+    ticker: str
+    yes_sub_title: str | None = None
+    last_price_dollars: str | None = None
+    status: str | None = None
+
+
+class EventOutcomesResponse(BaseModel):
+    """Response for GET /api/market/event/{event_ticker}/outcomes."""
+
+    status: Literal["success", "not_found", "upstream_failure"]
+    event_ticker: str
+    title: str | None = None
+    mutually_exclusive: bool | None = None
+    outcomes: list[EventOutcomeDTO]
+
+
+@router_rest.get(
+    "/market/event/{event_ticker}/outcomes",
+    response_model=EventOutcomesResponse,
+)
+async def get_event_outcomes(
+    event_ticker: str,
+    client: KalshiClientDep,
+) -> EventOutcomesResponse:
+    """Return sibling markets for an event, sorted by current price descending.
+
+    Used by the multi-outcome event chart to determine which outcome lines to
+    display.  Fetches the event with nested markets from Kalshi and returns a
+    slim projection sorted by ``last_price_dollars`` descending.
+    """
+    try:
+        raw = await client.get_event(event_ticker, with_nested_markets=True)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return EventOutcomesResponse(
+                status="not_found", event_ticker=event_ticker, outcomes=[],
+            )
+        logger.error("Kalshi event error for %s: %s", event_ticker, exc)
+        return EventOutcomesResponse(
+            status="upstream_failure", event_ticker=event_ticker, outcomes=[],
+        )
+    except httpx.RequestError as exc:
+        logger.error("Kalshi event request error for %s: %s", event_ticker, exc)
+        return EventOutcomesResponse(
+            status="upstream_failure", event_ticker=event_ticker, outcomes=[],
+        )
+
+    event_data = raw.get("event") or {}
+    raw_markets: list[dict] = event_data.get("markets") or []
+
+    outcomes = [
+        EventOutcomeDTO(
+            ticker=m.get("ticker", ""),
+            yes_sub_title=m.get("yes_sub_title"),
+            last_price_dollars=m.get("last_price_dollars"),
+            status=m.get("status"),
+        )
+        for m in raw_markets
+    ]
+
+    # Sort by current price descending (highest probability first).
+    def _price_sort_key(o: EventOutcomeDTO) -> float:
+        try:
+            return float(o.last_price_dollars or "0")
+        except (TypeError, ValueError):
+            return 0.0
+
+    outcomes.sort(key=_price_sort_key, reverse=True)
+
+    return EventOutcomesResponse(
+        status="success",
+        event_ticker=event_ticker,
+        title=event_data.get("title"),
+        mutually_exclusive=event_data.get("mutually_exclusive"),
+        outcomes=outcomes,
+    )
+
+
+# ---------------------------------------------------------------------------
+# REST: GET /api/market/event/{event_ticker}/candlesticks
+# ---------------------------------------------------------------------------
+
+
+class OutcomeCandlesticks(BaseModel):
+    """Candlestick data for a single outcome within a batch response."""
+
+    ticker: str
+    candlesticks: list[CandlestickDTO]
+
+
+class EventCandlesticksResponse(BaseModel):
+    """Response for GET /api/market/event/{event_ticker}/candlesticks."""
+
+    status: Literal["success", "upstream_failure"]
+    event_ticker: str
+    period_interval: int
+    outcomes: list[OutcomeCandlesticks]
+
+
+@router_rest.get(
+    "/market/event/{event_ticker}/candlesticks",
+    response_model=EventCandlesticksResponse,
+)
+async def get_event_candlesticks(
+    event_ticker: str,
+    client: KalshiClientDep,
+    tickers: str = Query(
+        ...,
+        description="Comma-separated market tickers to fetch candlesticks for",
+    ),
+    start_ts: int = Query(..., description="Range start (Unix seconds)"),
+    end_ts: int = Query(..., description="Range end (Unix seconds)"),
+    period_interval: int = Query(
+        1, ge=1, le=1440, description="Candle width in minutes",
+    ),
+) -> EventCandlesticksResponse:
+    """Batch-fetch candlestick history for multiple outcomes in an event.
+
+    Fetches candlesticks for each requested ticker in parallel using the
+    existing per-market candlestick endpoint on Kalshi.  The ``series_ticker``
+    is derived from the ``event_ticker`` (first dash segment).
+    """
+    series_ticker = event_ticker.split("-")[0] if "-" in event_ticker else event_ticker
+    ticker_list = [t.strip() for t in tickers.split(",") if t.strip()]
+
+    if not ticker_list:
+        return EventCandlesticksResponse(
+            status="success",
+            event_ticker=event_ticker,
+            period_interval=period_interval,
+            outcomes=[],
+        )
+
+    async def _fetch_one(market_ticker: str) -> OutcomeCandlesticks:
+        try:
+            raw = await client.get_candlesticks(
+                series_ticker=series_ticker,
+                market_ticker=market_ticker,
+                start_ts=start_ts,
+                end_ts=end_ts,
+                period_interval=period_interval,
+            )
+        except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            logger.warning(
+                "Candlestick fetch failed for %s: %s", market_ticker, exc,
+            )
+            return OutcomeCandlesticks(ticker=market_ticker, candlesticks=[])
+
+        raw_candles: list[dict] = raw.get("candlesticks") or []
+        candles: list[CandlestickDTO] = []
+        for c in raw_candles:
+            price = c.get("price") or {}
+
+            def _dollars_to_cents(val: object) -> int:
+                try:
+                    return round(float(val) * 100)  # type: ignore[arg-type]
+                except (TypeError, ValueError):
+                    return 0
+
+            candles.append(
+                CandlestickDTO(
+                    ts=c.get("end_period_ts", 0),
+                    open=_dollars_to_cents(price.get("open_dollars")),
+                    high=_dollars_to_cents(price.get("high_dollars")),
+                    low=_dollars_to_cents(price.get("low_dollars")),
+                    close=_dollars_to_cents(price.get("close_dollars")),
+                    volume=round(float(c.get("volume_fp") or 0)),
+                )
+            )
+
+        return OutcomeCandlesticks(ticker=market_ticker, candlesticks=candles)
+
+    results = await asyncio.gather(*[_fetch_one(t) for t in ticker_list])
+
+    return EventCandlesticksResponse(
+        status="success",
+        event_ticker=event_ticker,
+        period_interval=period_interval,
+        outcomes=list(results),
     )
 
 

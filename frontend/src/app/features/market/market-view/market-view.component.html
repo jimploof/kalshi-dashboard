@@ -84,59 +84,81 @@
             }
           </div>
           <div class="chart-toolbar__types">
-            <button
-              class="chart-toolbar__btn"
-              [class.active]="chartType() === 'auto'"
-              type="button"
-              (click)="setChartType('auto')"
-            >Auto</button>
-            <button
-              class="chart-toolbar__btn"
-              [class.active]="chartType() === 'candlestick'"
-              type="button"
-              (click)="setChartType('candlestick')"
-            >Candle</button>
-            <button
-              class="chart-toolbar__btn"
-              [class.active]="chartType() === 'line'"
-              type="button"
-              (click)="setChartType('line')"
-            >Line</button>
+            @if (hasMultipleOutcomes()) {
+              <button
+                class="chart-toolbar__btn chart-toolbar__btn--mode"
+                [class.active]="chartMode() === 'market'"
+                type="button"
+                (click)="setChartMode('market')"
+              >Market</button>
+              <button
+                class="chart-toolbar__btn chart-toolbar__btn--mode"
+                [class.active]="chartMode() === 'event'"
+                type="button"
+                (click)="setChartMode('event')"
+              >Event</button>
+              <span class="chart-toolbar__sep">|</span>
+            }
+            @if (chartMode() === 'market') {
+              <button
+                class="chart-toolbar__btn"
+                [class.active]="chartType() === 'auto'"
+                type="button"
+                (click)="setChartType('auto')"
+              >Auto</button>
+              <button
+                class="chart-toolbar__btn"
+                [class.active]="chartType() === 'candlestick'"
+                type="button"
+                (click)="setChartType('candlestick')"
+              >Candle</button>
+              <button
+                class="chart-toolbar__btn"
+                [class.active]="chartType() === 'line'"
+                type="button"
+                (click)="setChartType('line')"
+              >Line</button>
+            }
           </div>
-          <div class="chart-toolbar__toggles">
-            <label class="toggle-label toggle-label--ema">
-              <input type="checkbox" [checked]="showEma()" (change)="showEma.set(!showEma())" />
-              EMA
-            </label>
-            <label class="toggle-label toggle-label--bid">
-              <input type="checkbox" [checked]="showBid()" (change)="showBid.set(!showBid())" />
-              Bid
-            </label>
-            <label class="toggle-label toggle-label--ask">
-              <input type="checkbox" [checked]="showAsk()" (change)="showAsk.set(!showAsk())" />
-              Ask
-            </label>
-            <label class="toggle-label toggle-label--support">
-              <input type="checkbox" [checked]="showSupport()" (change)="showSupport.set(!showSupport())" />
-              S
-            </label>
-            <label class="toggle-label toggle-label--resist">
-              <input type="checkbox" [checked]="showResist()" (change)="showResist.set(!showResist())" />
-              R
-            </label>
-            <label class="toggle-label toggle-label--vol">
-              <input type="checkbox" [checked]="showVolume()" (change)="showVolume.set(!showVolume())" />
-              Vol
-            </label>
-          </div>
-          @if (candlesLoading()) {
+          @if (chartMode() === 'market') {
+            <div class="chart-toolbar__toggles">
+              <label class="toggle-label toggle-label--ema">
+                <input type="checkbox" [checked]="showEma()" (change)="showEma.set(!showEma())" />
+                EMA
+              </label>
+              <label class="toggle-label toggle-label--bid">
+                <input type="checkbox" [checked]="showBid()" (change)="showBid.set(!showBid())" />
+                Bid
+              </label>
+              <label class="toggle-label toggle-label--ask">
+                <input type="checkbox" [checked]="showAsk()" (change)="showAsk.set(!showAsk())" />
+                Ask
+              </label>
+              <label class="toggle-label toggle-label--support">
+                <input type="checkbox" [checked]="showSupport()" (change)="showSupport.set(!showSupport())" />
+                S
+              </label>
+              <label class="toggle-label toggle-label--resist">
+                <input type="checkbox" [checked]="showResist()" (change)="showResist.set(!showResist())" />
+                R
+              </label>
+              <label class="toggle-label toggle-label--vol">
+                <input type="checkbox" [checked]="showVolume()" (change)="showVolume.set(!showVolume())" />
+                Vol
+              </label>
+            </div>
+          }
+          @if (candlesLoading() || eventLoading()) {
             <span class="chart-toolbar__loading">Loading chart…</span>
           }
         </div>
 
         <!-- TradingView Lightweight Chart -->
         <div class="market-view__chart-wrap">
-          <app-market-chart
+          @if (chartMode() === 'event') {
+            <app-event-chart [outcomes]="eventOutcomes()" />
+          } @else {
+            <app-market-chart
             [candlesticks]="candlesticks()"
             [yesBid]="displayBid()"
             [yesAsk]="displayAsk()"
@@ -150,7 +172,19 @@
             [showResist]="showResist()"
             [showVolume]="showVolume()"
           />
+          }
         </div>
+
+        @if (chartMode() === 'event' && eventOutcomes().length > 0) {
+          <div class="event-legend">
+            @for (outcome of eventOutcomes(); track outcome.ticker) {
+              <span class="event-legend__item">
+                <span class="event-legend__swatch" [style.background]="outcome.color"></span>
+                {{ outcome.label }}
+              </span>
+            }
+          </div>
+        }
 
       </div>
 

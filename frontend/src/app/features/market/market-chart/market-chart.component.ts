@@ -390,11 +390,10 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
   private updateSeries(data: readonly CandlestickDTO[]): void {
     if (!data.length || !this.chart) return;
 
-    // Strip leading all-zero bars that precede any real trading activity.
-    const firstActive = data.findIndex(c => c.volume > 0 || c.close > 0);
-    const activeData: readonly CandlestickDTO[] = firstActive > 0
-      ? data.slice(firstActive)
-      : data;
+    // Filter out ghost bars where no trades occurred (close=0, volume=0).
+    // Kalshi returns candle frames for every period even without activity;
+    // plotting null-turned-0 prices causes lines/candles to spike to 0.
+    const activeData = data.filter(c => c.close > 0 || c.volume > 0);
 
     // If chart type is 'auto', resolve from the new data and rebuild if needed.
     const requestedType = this.chartType();
