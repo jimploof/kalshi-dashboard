@@ -9,7 +9,7 @@ import {
   Output,
 } from '@angular/core';
 
-import { DebugService, DebugStatus, KalshiCallRecord, CacheLookupRecord, SnapshotBuildRecord } from '../../../services/debug.service';
+import { DebugService, DebugStatus, KalshiCallRecord, CacheLookupRecord, SnapshotBuildRecord, ConnectivityStatus } from '../../../services/debug.service';
 
 @Component({
   selector: 'app-debug-modal',

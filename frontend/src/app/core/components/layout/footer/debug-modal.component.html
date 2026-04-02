@@ -7,6 +7,52 @@
     </div>
 
     @if (debug.status(); as s) {
+      <!-- ── Connectivity ──────────────────────────────── -->
+      @if (s.connectivity; as c) {
+        <section class="dbg-section">
+          <div class="dbg-section__heading">Connectivity</div>
+          <div class="dbg-grid">
+            <span class="dbg-grid__label">REST URL</span>
+            <span class="dbg-grid__value dbg-grid__value--mono">{{ c.rest_url }}</span>
+            <span class="dbg-grid__label">REST Status</span>
+            <span class="dbg-grid__value">
+              @if (!c.rest_configured) {
+                <span class="dbg-badge dbg-badge--warn">NOT CONFIGURED</span>
+              } @else if (c.rest_status === 'active') {
+                <span class="dbg-badge dbg-badge--ok">ACTIVE</span>
+              } @else if (c.rest_status === 'error') {
+                <span class="dbg-badge dbg-badge--err">ERROR</span>
+              } @else {
+                <span class="dbg-badge">NO CALLS</span>
+              }
+              @if (c.rest_last_status_code !== null) {
+                <span class="dbg-badge" [class.dbg-badge--ok]="c.rest_last_status_code === 200" [class.dbg-badge--err]="c.rest_last_status_code !== 200">{{ c.rest_last_status_code }}</span>
+              }
+            </span>
+            @if (c.rest_last_call_at) {
+              <span class="dbg-grid__label">Last REST call</span>
+              <span class="dbg-grid__value">{{ formatTs(c.rest_last_call_at) }}</span>
+            }
+            <span class="dbg-grid__label">WebSocket URL</span>
+            <span class="dbg-grid__value dbg-grid__value--mono">{{ c.ws_url }}</span>
+            <span class="dbg-grid__label">WS Status</span>
+            <span class="dbg-grid__value">
+              @if (!c.ws_configured) {
+                <span class="dbg-badge dbg-badge--warn">NOT CONFIGURED</span>
+              } @else if (c.ws_connected) {
+                <span class="dbg-badge dbg-badge--ok">CONNECTED</span>
+              } @else {
+                <span class="dbg-badge dbg-badge--err">DISCONNECTED</span>
+              }
+            </span>
+            @if (c.ws_subscribed_tickers.length > 0) {
+              <span class="dbg-grid__label">WS Subscriptions</span>
+              <span class="dbg-grid__value dbg-grid__value--mono">{{ c.ws_subscribed_tickers.join(', ') }}</span>
+            }
+          </div>
+        </section>
+      }
+
       <!-- ── Current Snapshot Build ─────────────────────── -->
       <section class="dbg-section">
         <div class="dbg-section__heading">Snapshot Build

@@ -1,8 +1,3 @@
-// ---------------------------------------------------------------------------
-// Market View — workstation-style trading panel
-// Dark theme; dense information layout
-// ---------------------------------------------------------------------------
-
 :host {
   display: flex;
   flex-direction: column;
@@ -11,8 +6,6 @@
   color: #c9d1d9;
   font-size: 13px;
 }
-
-// ── Header ──────────────────────────────────────────────────────────────────
 
 .market-view__header {
   display: flex;
@@ -77,8 +70,6 @@
   border: 1px solid #1f6feb;
 }
 
-// ── Live price block ─────────────────────────────────────────────────────────
-
 .market-view__live {
   display: flex;
   align-items: center;
@@ -138,7 +129,18 @@
   }
 }
 
-// ── Status badges ────────────────────────────────────────────────────────────
+.market-view__ws-debug-btn {
+  background: none;
+  border: 1px solid #44475a;
+  color: #8be9fd;
+  cursor: pointer;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  margin-left: 4px;
+
+  &:hover { color: #f8f8f2; border-color: #6272a4; }
+}
 
 .badge {
   display: inline-block;
@@ -154,8 +156,6 @@
 .badge-status--closed   { background: #3d2800; color: #e3b341; border: 1px solid #9e6a03; }
 .badge-status--settled  { background: #1c2128; color: #8b949e; border: 1px solid #30363d; }
 .badge-status--unopened { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
-
-// ── Stats bar ─────────────────────────────────────────────────────────────────
 
 .market-view__stats {
   display: flex;
@@ -191,8 +191,6 @@
   font-family: 'Courier New', Courier, monospace;
 }
 
-// ── Error state ───────────────────────────────────────────────────────────────
-
 .market-view__error {
   display: flex;
   flex-direction: column;
@@ -214,16 +212,12 @@
   }
 }
 
-// ── Main body: chart + orderbook ──────────────────────────────────────────────
-
 .market-view__body {
   display: flex;
   flex: 1;
   min-height: 0; // allow flex children to shrink
   overflow: hidden;
 }
-
-// ── Chart panel ───────────────────────────────────────────────────────────────
 
 .market-view__chart-panel {
   display: flex;
@@ -233,8 +227,6 @@
   border-right: 1px solid #21262d;
   overflow: hidden;
 }
-
-// Chart toolbar
 
 .chart-toolbar {
   display: flex;
@@ -280,7 +272,26 @@
   margin-left: auto;
 }
 
-// Overlay visibility toggles
+.chart-toolbar__zoom {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-toolbar__zoom-select {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: #c9d1d9;
+  border-radius: 4px;
+  font-size: 11px;
+  height: 24px;
+  padding: 0 6px;
+}
+
+.chart-toolbar__btn--zoom {
+  min-width: 24px;
+  padding: 3px 6px;
+}
 
 .chart-toolbar__toggles {
   display: flex;
@@ -315,19 +326,16 @@
   &--vol     { color: #8b949e; }
 }
 
-// Chart container
-
 .market-view__chart-wrap {
   flex: 1;
-  min-height: max(52vh, 360px);
+  max-height: 65vh;   // hard ceiling — chart never exceeds this
+  min-height: 0;
   overflow: hidden;
   padding: 4px;
 }
 
-// ── Order book panel ──────────────────────────────────────────────────────────
-
 .market-view__ob-panel {
-  width: 240px;
+  width: 290px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -361,7 +369,7 @@
 
 .ob-columns {
   display: flex;
-  flex: 1;
+  flex: 0 0 42%;
   min-height: 0;
   overflow: hidden;
 }
@@ -409,7 +417,6 @@
   border-bottom: 1px solid #161b22;
   overflow: hidden;
 
-  // Depth bar — fills from right proportional to --depth custom prop.
   &::after {
     content: '';
     position: absolute;
@@ -436,7 +443,6 @@
 .ob-price { font-family: 'Courier New', Courier, monospace; }
 .ob-qty   { font-family: 'Courier New', Courier, monospace; color: #8b949e; }
 
-// ── Footer: rules + prev prices ───────────────────────────────────────────────
 
 .market-view__footer {
   display: flex;
@@ -477,6 +483,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
 }
@@ -502,8 +509,6 @@
   flex-shrink: 0;
 }
 
-// ── Chart mode separator ──────────────────────────────────────────────────────
-
 .chart-toolbar__sep {
   color: #30363d;
   font-size: 13px;
@@ -514,8 +519,6 @@
 .chart-toolbar__btn--mode {
   font-weight: 600;
 }
-
-// ── Event chart legend ────────────────────────────────────────────────────────
 
 .event-legend {
   display: flex;
@@ -545,3 +548,4 @@
   border-radius: 1px;
   flex-shrink: 0;
 }
+

@@ -1,0 +1,73 @@
+.blip {
+  --blip-r-g-b:        92, 157, 255;
+  --blip-core-size:    8px;
+  --blip-ring-size:    25px;
+  --blip-ring-width:   2px;
+  --blip-duration:     3s;
+  --blip-halo-size:    25px;
+  --blip-pulse-opacity: 1;
+
+  position: relative;
+  width: var(--blip-core-size);
+  height: var(--blip-core-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+
+  &__core,
+  &__halo,
+  &__ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  &__core {
+    z-index: 4;
+    width: var(--blip-core-size);
+    height: var(--blip-core-size);
+    background: rgb(var(--blip-r-g-b));
+  }
+
+  &__halo {
+    z-index: 1;
+    width: var(--blip-halo-size);
+    height: var(--blip-halo-size);
+    background: radial-gradient(
+      circle,
+      rgba(var(--blip-r-g-b), 0.22) 0%,
+      rgba(var(--blip-r-g-b), 0.10) 50%,
+      transparent 78%
+    );
+    filter: blur(1px);
+  }
+
+  &__ring {
+    z-index: 2;
+    width: var(--blip-ring-size);
+    height: var(--blip-ring-size);
+    border: var(--blip-ring-width) solid rgba(var(--blip-r-g-b), var(--blip-pulse-opacity));
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.18);
+    animation: blip-ring var(--blip-duration) cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+
+    &--one {
+      animation-delay: calc(var(--blip-duration) / 4);
+    }
+
+    &--two {
+      animation-delay: calc(var(--blip-duration) * 3 / 4);
+    }
+  }
+}
+
+@keyframes blip-ring {
+  0%   { transform: translate(-50%, -50%) scale(0.18); opacity: 0; }
+  8%   { opacity: 1; }
+  38%  { opacity: 0.38; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}

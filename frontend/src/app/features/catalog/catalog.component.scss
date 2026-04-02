@@ -51,6 +51,12 @@
     font-size: 12px;
   }
 
+  &__search {
+    width: auto;
+    min-width: 180px;
+    font-size: 12px;
+  }
+
   &__count,
   &__hint {
     font-size: 11px;

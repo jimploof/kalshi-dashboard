@@ -42,6 +42,16 @@ export type WsOrderbookDelta = {
   readonly side: 'yes' | 'no';
 };
 
+export type WsTradeMsg = {
+  readonly trade_id: string | null;
+  readonly market_ticker: string;
+  readonly yes_price: number | null;
+  readonly no_price: number | null;
+  readonly count: number | null;
+  readonly taker_side: 'yes' | 'no' | null;
+  readonly ts: number | null;
+};
+
 type WsEnvelope = {
   readonly type: string;
   readonly sid?: number;
@@ -62,12 +72,28 @@ export class MarketWsService implements OnDestroy {
   readonly connected = signal(false);
   readonly wsError = signal<string | null>(null);
 
+  // ── Diagnostics ────────────────────────────────────────────────────────────
+  readonly messageCount = signal(0);
+  readonly lastMessageAt = signal<Date | null>(null);
+  readonly lastMessageType = signal<string | null>(null);
+  readonly tickerCount = signal(0);
+  readonly tickerPulse = signal(0);
+  readonly lastTickerAt = signal<Date | null>(null);
+  readonly obSnapshotCount = signal(0);
+  readonly obDeltaCount = signal(0);
+  readonly unknownCount = signal(0);
+  readonly lastRawSample = signal<string>('');
+  /** Captures the first few ticker message payloads specifically for debugging. */
+  readonly lastTickerSample = signal<string>('');
+  readonly tradeCount = signal(0);
+
   // ── Live ticker (from 'ticker' WS messages) ───────────────────────────────
   readonly yesBid = signal<number | null>(null);
   readonly yesAsk = signal<number | null>(null);
   readonly lastPrice = signal<number | null>(null);
   readonly volume = signal<number | null>(null);
   readonly openInterest = signal<number | null>(null);
+  readonly trades = signal<readonly WsTradeMsg[]>([]);
 
   // ── Raw orderbook maps (price → quantity) ─────────────────────────────────
   private readonly _yesBook = signal<ReadonlyMap<number, number>>(new Map());
@@ -159,22 +185,50 @@ export class MarketWsService implements OnDestroy {
       return;
     }
 
+    this.messageCount.update(c => c + 1);
+    this.lastMessageAt.set(new Date());
+    this.lastMessageType.set(envelope.type ?? 'unknown');
+
+    // Capture sample of first message for debugging (any type).
+    if (this.messageCount() <= 5) {
+      this.lastRawSample.set(JSON.stringify(envelope).slice(0, 500));
+    }
+
     switch (envelope.type) {
       case 'ticker':
+        this.tickerCount.update(c => c + 1);
+        this.tickerPulse.update(c => c + 1);
+        this.lastTickerAt.set(new Date());
         this.applyTickerUpdate(envelope.msg as WsTickerMsg);
         break;
       case 'orderbook_snapshot':
+        this.obSnapshotCount.update(c => c + 1);
         this.applyOrderbookSnapshot(envelope.msg as WsOrderbookSnapshot);
         break;
       case 'orderbook_delta':
+        this.obDeltaCount.update(c => c + 1);
         this.applyOrderbookDelta(envelope.msg as WsOrderbookDelta);
         break;
+      case 'trade':
+        this.tradeCount.update(c => c + 1);
+        this.applyTrade(envelope.msg as WsTradeMsg);
+        break;
       default:
+        this.unknownCount.update(c => c + 1);
+        // Capture a sample of unrecognized messages for debugging.
+        if (this.unknownCount() <= 3) {
+          this.lastRawSample.set(JSON.stringify(envelope).slice(0, 300));
+        }
         break;
     }
   }
 
   private applyTickerUpdate(msg: WsTickerMsg): void {
+    // Capture first 3 ticker messages for debugging.
+    if (this.tickerCount() <= 3) {
+      this.lastTickerSample.set(JSON.stringify(msg));
+    }
+
     if (msg.yes_bid !== undefined) this.yesBid.set(msg.yes_bid);
     if (msg.yes_ask !== undefined) this.yesAsk.set(msg.yes_ask);
     if (msg.last_price !== undefined) this.lastPrice.set(msg.last_price);
@@ -202,5 +256,12 @@ export class MarketWsService implements OnDestroy {
     }
 
     bookSignal.set(updated);
+  }
+
+  private applyTrade(msg: WsTradeMsg): void {
+    this.trades.update(current => {
+      const next = [msg, ...current];
+      return next.slice(0, 300);
+    });
   }
 }

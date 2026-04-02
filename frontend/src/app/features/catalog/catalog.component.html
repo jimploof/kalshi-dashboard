@@ -48,31 +48,29 @@
                   }
                 </select>
               </div>
+              <input
+                type="search"
+                class="form-control form-control-sm series-toolbar__search"
+                placeholder="Search events…"
+                aria-label="Search events"
+                [value]="searchQuery()"
+                (input)="setSearchQuery($any($event.target).value)"
+              />
               @if (stale()) {
                 <span class="badge series-toolbar__stale" title="Snapshot may be slightly outdated">Refreshing…</span>
               }
               @if (!cardsLoading() && total() > 0) {
-                <span class="series-toolbar__count">{{ cards().length }}/{{ total() }}</span>
+                <span class="series-toolbar__count">{{ filteredCards().length }} of {{ total() }}</span>
               }
             </div>
           </div>
         </div>
 
         <app-event-card-list
-          [cards]="cards()"
+          [cards]="filteredCards()"
           [loading]="cardsLoading()"
           (cardSelected)="onEventCardSelected($event)"
         />
-
-        @if (nextCursor() && !cardsLoading()) {
-          <div class="d-flex justify-content-center mt-3 mb-2">
-            <button
-              class="btn btn-sm btn-outline-secondary"
-              type="button"
-              (click)="loadMore()"
-            >Load more</button>
-          </div>
-        }
       }
 
       @case ('markets') {

@@ -26,6 +26,7 @@
         </div>
         <div class="market-view__last">Last: {{ formatCents(displayLast()) }}</div>
         <div class="market-view__ws-dot" [class.connected]="wsService.connected()" title="{{ wsService.connected() ? 'Live' : 'Connecting…' }}"></div>
+        <button class="market-view__ws-debug-btn" type="button" (click)="openWsDebug()" title="WS Debug">WS Debug</button>
       </div>
     }
   </div>
@@ -54,6 +55,71 @@
         <span class="stat__value mono">{{ market()!.series_ticker ?? '—' }}</span>
       </span>
     </div>
+
+    <div class="market-view__analytics-grid">
+      <div class="analytics-card">
+        <div class="analytics-card__title">Orderbook Imbalance<button class="analytics-card__help-btn" type="button" (click)="openHelp('imbalance')" aria-label="Orderbook Imbalance help">?</button></div>
+        <div class="analytics-card__row">
+          <span class="muted">Top 5</span>
+          <span class="mono" [class.text-buy]="(imbalanceTop5() ?? 0) > 0" [class.text-sell]="(imbalanceTop5() ?? 0) < 0">{{ formatSigned(imbalanceTop5(), '%') }}</span>
+        </div>
+        <div class="analytics-card__row">
+          <span class="muted">Top 10</span>
+          <span class="mono" [class.text-buy]="(imbalanceTop10() ?? 0) > 0" [class.text-sell]="(imbalanceTop10() ?? 0) < 0">{{ formatSigned(imbalanceTop10(), '%') }}</span>
+        </div>
+      </div>
+
+      <div class="analytics-card">
+        <div class="analytics-card__title">Microprice / Pressure<button class="analytics-card__help-btn" type="button" (click)="openHelp('microprice')" aria-label="Microprice help">?</button></div>
+        <div class="analytics-card__row">
+          <span class="muted">Microprice</span>
+          <span class="mono">{{ formatCents(microprice()) }}</span>
+        </div>
+        <div class="analytics-card__row">
+          <span class="muted">Pressure</span>
+          <span class="mono" [class.text-buy]="(impliedPressurePct() ?? 0) > 0" [class.text-sell]="(impliedPressurePct() ?? 0) < 0">{{ formatSigned(impliedPressurePct(), '%') }}</span>
+        </div>
+      </div>
+
+      <div class="analytics-card">
+        <div class="analytics-card__title">Rolling Spread<button class="analytics-card__help-btn" type="button" (click)="openHelp('spread')" aria-label="Rolling Spread help">?</button></div>
+        <div class="analytics-card__row"><span class="muted">Latest</span><span class="mono">{{ spreadStats().latest ?? '—' }}</span></div>
+        <div class="analytics-card__row"><span class="muted">Mean</span><span class="mono">{{ spreadStats().mean ?? '—' }}</span></div>
+        <div class="analytics-card__row"><span class="muted">P90</span><span class="mono">{{ spreadStats().p90 ?? '—' }}</span></div>
+      </div>
+
+      <div class="analytics-card">
+        <div class="analytics-card__title">Depth Concentration<button class="analytics-card__help-btn" type="button" (click)="openHelp('depth')" aria-label="Depth Concentration help">?</button></div>
+        <div class="analytics-card__row"><span class="muted">YES Top3</span><span class="mono">{{ formatPct(depthConcentration().yesTop3Pct) }}</span></div>
+        <div class="analytics-card__row"><span class="muted">NO Top3</span><span class="mono">{{ formatPct(depthConcentration().noTop3Pct) }}</span></div>
+        <div class="analytics-card__row"><span class="muted">YES Top1</span><span class="mono">{{ formatPct(depthConcentration().yesTop1Pct) }}</span></div>
+      </div>
+
+      <div class="analytics-card">
+        <div class="analytics-card__title">Event Dispersion<button class="analytics-card__help-btn" type="button" (click)="openHelp('dispersion')" aria-label="Event Dispersion help">?</button></div>
+        <div class="analytics-card__row"><span class="muted">Outcomes</span><span class="mono">{{ dispersionStats().count }}</span></div>
+        <div class="analytics-card__row"><span class="muted">Stdev</span><span class="mono">{{ dispersionStats().stdev ?? '—' }}</span></div>
+        <div class="analytics-card__row"><span class="muted">Range</span><span class="mono">{{ dispersionStats().range ?? '—' }}</span></div>
+      </div>
+
+      <div class="analytics-card">
+        <div class="analytics-card__title">Intraday Return/Drawdown<button class="analytics-card__help-btn" type="button" (click)="openHelp('intraday')" aria-label="Intraday Return help">?</button></div>
+        <div class="analytics-card__row"><span class="muted">Return</span><span class="mono" [class.text-buy]="(intradayStats().returnPct ?? 0) > 0" [class.text-sell]="(intradayStats().returnPct ?? 0) < 0">{{ formatSigned(intradayStats().returnPct, '%') }}</span></div>
+        <div class="analytics-card__row"><span class="muted">Max DD</span><span class="mono text-sell">{{ formatSigned(intradayStats().drawdownPct, '%') }}</span></div>
+        <div class="analytics-card__row"><span class="muted">Bars</span><span class="mono">{{ intradayStats().bars }}</span></div>
+      </div>
+
+      <div class="analytics-card">
+        <div class="analytics-card__title">Candle Quality<button class="analytics-card__help-btn" type="button" (click)="openHelp('candle')" aria-label="Candle Quality help">?</button></div>
+        <div class="analytics-card__row"><span class="muted">Flat Bars</span><span class="mono">{{ formatPct(candleQuality().flatPct) }}</span></div>
+        <div class="analytics-card__row"><span class="muted">Large Wicks</span><span class="mono">{{ formatPct(candleQuality().largeWickPct) }}</span></div>
+        <div class="analytics-card__row"><span class="muted">Open Gaps</span><span class="mono">{{ candleQuality().gapCount }}</span></div>
+      </div>
+    </div>
+
+    @if (activeHelpCard()) {
+      <app-analytics-help-modal [cardKey]="$any(activeHelpCard())" (close)="closeHelp()" />
+    }
   }
 
   <!-- ── Error state ────────────────────────────────────────────────────────── -->
@@ -120,6 +186,15 @@
               >Line</button>
             }
           </div>
+          <div class="chart-toolbar__zoom">
+            <button class="chart-toolbar__btn chart-toolbar__btn--zoom" type="button" (click)="zoomOut()" aria-label="Zoom out">−</button>
+            <select class="chart-toolbar__zoom-select" [value]="zoomPercent()" (change)="setZoomFromInput($any($event.target).value)">
+              @for (zoom of zoomOptions; track zoom) {
+                <option [value]="zoom">{{ zoom }}%</option>
+              }
+            </select>
+            <button class="chart-toolbar__btn chart-toolbar__btn--zoom" type="button" (click)="zoomIn()" aria-label="Zoom in">+</button>
+          </div>
           @if (chartMode() === 'market') {
             <div class="chart-toolbar__toggles">
               <label class="toggle-label toggle-label--ema">
@@ -156,7 +231,13 @@
         <!-- TradingView Lightweight Chart -->
         <div class="market-view__chart-wrap">
           @if (chartMode() === 'event') {
-            <app-event-chart [outcomes]="eventOutcomes()" />
+            <app-event-chart
+              [outcomes]="eventOutcomes()"
+              [livePrices]="eventWsService.livePrices()"
+              [liveTick]="eventWsService.tickerPulse()"
+              [periodInterval]="periodInterval()"
+              [zoomPercent]="zoomPercent()"
+            />
           } @else {
             <app-market-chart
             [candlesticks]="candlesticks()"
@@ -164,7 +245,9 @@
             [yesAsk]="displayAsk()"
             [chartType]="chartType()"
             [livePrice]="wsService.lastPrice()"
+            [liveTick]="wsService.tickerPulse()"
             [periodInterval]="periodInterval()"
+            [zoomPercent]="zoomPercent()"
             [showEma]="showEma()"
             [showBid]="showBid()"
             [showAsk]="showAsk()"
@@ -232,6 +315,42 @@
             }
           </div>
         </div>
+
+        <div class="market-view__tape-panel">
+          <div class="ob-col-header">
+            <span>Trade Tape</span>
+            <span class="mono">{{ wsService.tradeCount() }}</span>
+          </div>
+          <div class="tape-flow">
+            <span class="tape-flow__buy">Y {{ aggressorFlow().yesVolume | number:'1.0-0' }}</span>
+            <span class="tape-flow__net" [class.text-buy]="aggressorFlow().net > 0" [class.text-sell]="aggressorFlow().net < 0">Net {{ aggressorFlow().net | number:'1.0-0' }}</span>
+            <span class="tape-flow__sell">N {{ aggressorFlow().noVolume | number:'1.0-0' }}</span>
+          </div>
+          <div class="tape-list">
+            @for (trade of recentTrades(); track trade.trade_id ?? $index) {
+              <div class="tape-row" [class.tape-row--buy]="trade.taker_side === 'yes'" [class.tape-row--sell]="trade.taker_side === 'no'">
+                <span class="mono">{{ formatCents(trade.yes_price) }}</span>
+                <span class="mono">{{ trade.count ?? '—' }}</span>
+                <span>{{ trade.taker_side ?? '—' }}</span>
+              </div>
+            }
+            @if (recentTrades().length === 0) {
+              <div class="ob-empty">Waiting for trades…</div>
+            }
+          </div>
+        </div>
+
+        <div class="market-view__queue-panel">
+          <div class="ob-col-header">
+            <span>Queue Trend</span>
+            <span class="mono">{{ queueTrendStats().points }}</span>
+          </div>
+          <div class="queue-row"><span>Orders</span><span class="mono">{{ queueTrendStats().orderCount }}</span></div>
+          <div class="queue-row"><span>Avg FP</span><span class="mono">{{ queueTrendStats().avg ?? '—' }}</span></div>
+          <div class="queue-row"><span>Max FP</span><span class="mono">{{ queueTrendStats().max ?? '—' }}</span></div>
+          <div class="queue-row"><span>Total FP</span><span class="mono">{{ queueTrendStats().total ?? '—' }}</span></div>
+          <div class="queue-row"><span>Trend</span><span class="mono" [class.text-buy]="(queueTrendStats().delta ?? 0) > 0" [class.text-sell]="(queueTrendStats().delta ?? 0) < 0">{{ formatSigned(queueTrendStats().delta) }}</span></div>
+        </div>
       </div>
 
     </div>
@@ -279,3 +398,8 @@
   }
 
 </div>
+
+<!-- ── WS Debug Modal ────────────────────────────────────────────────────── -->
+@if (wsDebugOpen()) {
+  <app-ws-debug-modal [ws]="wsService" (closed)="closeWsDebug()" />
+}

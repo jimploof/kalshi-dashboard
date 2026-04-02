@@ -27,9 +27,14 @@ import {
   ElementRef,
   input,
   OnDestroy,
+  signal,
   untracked,
   viewChild,
 } from '@angular/core';
+import {
+  ChartLegendHelpModalComponent,
+  type ChartLegendKey,
+} from '../chart-legend-help-modal/chart-legend-help-modal.component';
 import {
   ColorType,
   createChart,
@@ -64,24 +69,31 @@ const PALETTE = {
 
 const EMA_PERIOD  = 20;   // bars
 const SR_STRENGTH = 5;    // pivot lookback each side (bars)
-const SR_MERGE    = 2;    // merge pivots within N ticks
+const SR_MIN_MERGE_TICKS = 1; // minimum merge tolerance in ticks
+const SR_MAX_LEVELS = 6;
+const BASE_BAR_SPACING = 6;
 
 @Component({
   selector: 'app-market-chart',
   standalone: true,
-  imports: [],
+  imports: [ChartLegendHelpModalComponent],
   templateUrl: './market-chart.component.html',
   styleUrl: './market-chart.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MarketChartComponent implements AfterViewInit, OnDestroy {
+export class MarketChartComponent implements AfterViewInit, OnDestroy {  // ── Legend help modal ──────────────────────────────────────────────────────
+  readonly activeLegendHelp = signal<ChartLegendKey | null>(null);
+  openLegendHelp(key: ChartLegendKey): void { this.activeLegendHelp.set(key); }
+  closeLegendHelp(): void { this.activeLegendHelp.set(null); }
   // ── Inputs ────────────────────────────────────────────────────────────────
   readonly candlesticks   = input<readonly CandlestickDTO[]>([]);
   readonly yesBid         = input<number | null>(null);
   readonly yesAsk         = input<number | null>(null);
   readonly chartType      = input<ChartType>('candlestick');
   readonly livePrice      = input<number | null>(null);
+  readonly liveTick       = input<number>(0);
   readonly periodInterval = input<number>(1);
+  readonly zoomPercent    = input<number>(100);
 
   // Overlay visibility toggles (all default true)
   readonly showEma      = input<boolean>(true);
@@ -103,7 +115,21 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
   private bidPriceLine: IPriceLine | null = null;
   private askPriceLine: IPriceLine | null = null;
   private srLines: IPriceLine[] = [];
+  private yAxisAnchorSeries: ISeriesApi<'Line'> | null = null;
   private resizeObserver: ResizeObserver | null = null;
+
+  /** Tracks the in-progress live bar across multiple ticks within a period. */
+  private liveBar: {
+    ts: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    tickCount: number;
+  } | null = null;
+
+  /** Last EMA value so the live bar can extend the indicator incrementally. */
+  private lastEmaValue: number | null = null;
 
   constructor() {
     // React to candlestick data changes after chart is initialised.
@@ -178,8 +204,26 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
       }
     });
 
-    // React to live price ticks from WS — update the current bar in real time.
+    // Apply horizontal zoom level from parent toolbar controls.
     effect(() => {
+      const zoom = this.zoomPercent();
+      if (this.chart) {
+        this.chart.timeScale().applyOptions({
+          barSpacing: this.toBarSpacing(zoom),
+        });
+        this.chart.timeScale().scrollToPosition(0, false);
+        this.updateYAxisAnchor(untracked(() => this.candlesticks()));
+      }
+    });
+
+    // React to live price ticks from WS — update the current bar in real time.
+    // Tracks running OHLCV state across multiple ticks within each period,
+    // and also updates the volume histogram and EMA overlay.
+    effect(() => {
+      // Trigger this effect on every ticker message, even if the price value
+      // itself did not change (signals suppress identical-value sets).
+      this.liveTick();
+
       const price = this.livePrice();
       const candles = this.candlesticks();
       if (price === null || !candles.length || !this.chart) return;
@@ -187,24 +231,60 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
       const periodSecs = this.periodInterval() * 60;
       const nowSecs    = Math.floor(Date.now() / 1000);
       const barTs      = (Math.floor(nowSecs / periodSecs) * periodSecs) as UTCTimestamp;
-      const last       = candles[candles.length - 1];
-      const isSamePeriod =
-        barTs === last.ts || (barTs > last.ts && barTs - last.ts < periodSecs);
 
+      // Determine whether we're continuing the current live bar or starting a new one.
+      let bar: NonNullable<typeof this.liveBar>;
+
+      if (!this.liveBar || this.liveBar.ts !== barTs) {
+        // Starting a new period — reset the running bar state.
+        bar = {
+          ts: barTs,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+          tickCount: 1,
+        };
+        this.liveBar = bar;
+      } else {
+        // Same period — update running extrema.
+        bar = this.liveBar;
+        bar.high  = Math.max(bar.high, price);
+        bar.low   = Math.min(bar.low, price);
+        bar.close = price;
+        bar.tickCount++;
+      }
+
+      // Update candlestick series.
+      if (this.candleSeries) {
+        this.candleSeries.update({
+          time:  barTs,
+          open:  bar.open,
+          high:  bar.high,
+          low:   bar.low,
+          close: bar.close,
+        });
+      }
+
+      // Update line series.
       if (this.lineSeries) {
         this.lineSeries.update({ time: barTs, value: price });
       }
-      if (this.candleSeries) {
-        const open     = isSamePeriod ? last.open  : price;
-        const prevHigh = isSamePeriod ? last.high  : price;
-        const prevLow  = isSamePeriod ? last.low   : price;
-        this.candleSeries.update({
+
+      // Update volume histogram for the live bar (tick count as proxy volume).
+      if (this.volumeSeries) {
+        this.volumeSeries.update({
           time:  barTs,
-          open,
-          high:  Math.max(prevHigh, price),
-          low:   Math.min(prevLow,  price),
-          close: price,
+          value: bar.tickCount,
+          color: bar.close >= bar.open ? PALETTE.volUp : PALETTE.volDn,
         });
+      }
+
+      // Extend EMA for the live bar.
+      if (this.emaSeries && this.lastEmaValue !== null) {
+        const k = 2 / (EMA_PERIOD + 1);
+        const emaVal = price * k + this.lastEmaValue * (1 - k);
+        this.emaSeries.update({ time: barTs, value: emaVal });
       }
     });
   }
@@ -250,9 +330,15 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
         timeVisible: true,
         secondsVisible: false,
         rightOffset: 8,
+        barSpacing: this.toBarSpacing(this.zoomPercent()),
       },
       handleScroll: { mouseWheel: true, pressedMouseMove: true },
-      handleScale: { mouseWheel: true, pinch: true },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        // Disable price-axis drag so the user cannot accidentally stretch Y.
+        axisPressedMouseMove: { time: true, price: false },
+      },
     });
 
     // Volume histogram — separate price scale at the bottom.
@@ -270,9 +356,6 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
       ? this.detectChartType(untracked(() => this.candlesticks()))
       : initType;
     this.applyChartType(resolvedType);
-
-    // Attach bid/ask price lines to the active price series.
-    this.createPriceLines();
 
     // Populate with initial data (if already loaded) — untracked so reading
     // candlesticks here doesn’t add it as a dep of any outer effect.
@@ -329,20 +412,27 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
     this.bidPriceLine = null;
     this.askPriceLine = null;
 
+    // autoscaleInfoProvider locks the Y axis permanently to the 0-100 cent
+    // domain. margins: {above:0, below:0} is critical — a non-zero margin
+    // adds that fraction of the 100-unit range as padding (e.g. 0.05 = 5
+    // units below 0), which is what causes negative axis values on live charts.
+    const autoscaleInfoProvider = () => ({
+      priceRange: { minValue: 0, maxValue: 100 },
+      margins: { above: 0, below: 0 },
+    });
+
     if (type === 'candlestick') {
       this.candleSeries = this.chart.addCandlestickSeries({
         upColor:         PALETTE.upColor,
         downColor:       PALETTE.dnColor,
-        // Borders ensure candle bodies remain visible even at 1-tick scale.
         borderVisible:   true,
         borderUpColor:   PALETTE.upColor,
         borderDownColor: PALETTE.dnColor,
         wickUpColor:     PALETTE.upColor,
         wickDownColor:   PALETTE.dnColor,
-        // Suppress the series close-value label so it doesn’t duplicate the Bid
-        // price-line label that sits at the same Y coordinate.
         lastValueVisible: false,
         priceFormat:     { type: 'price', precision: 0, minMove: 1 },
+        autoscaleInfoProvider,
       });
     } else {
       this.lineSeries = this.chart.addLineSeries({
@@ -351,7 +441,9 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
         lastValueVisible: true,
         priceFormat:      { type: 'price', precision: 0, minMove: 1 },
         title:            'YES Last',
+        autoscaleInfoProvider,
       });
+
     }
 
     this.createPriceLines();
@@ -368,13 +460,22 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
     const series = (this.candleSeries ?? this.lineSeries);
     if (!series) return;
 
+    // Defensive cleanup in case this is called again for the same series.
+    if (this.bidPriceLine) {
+      try { series.removePriceLine(this.bidPriceLine); } catch { /* already gone */ }
+      this.bidPriceLine = null;
+    }
+    if (this.askPriceLine) {
+      try { series.removePriceLine(this.askPriceLine); } catch { /* already gone */ }
+      this.askPriceLine = null;
+    }
+
     this.bidPriceLine = series.createPriceLine({
       price: this.yesBid() ?? 50,
       color: PALETTE.bidColor,
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: true,
-      title: 'Bid',
     });
 
     this.askPriceLine = series.createPriceLine({
@@ -383,7 +484,6 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
       lineWidth: 1,
       lineStyle: LineStyle.Dashed,
       axisLabelVisible: true,
-      title: 'Ask',
     });
   }
 
@@ -443,8 +543,14 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
     // Support & resistance levels.
     this.updateSRLevels(activeData);
 
-    // Always scroll so the most recent bar is visible at the right edge.
-    this.chart.timeScale().scrollToRealTime();
+    // Reset live bar state — fresh candle data means the live bar should
+    // start clean on the next WS tick.
+    this.liveBar = null;
+
+    this.updateYAxisAnchor(activeData);
+
+    // Scroll to right edge preserving barSpacing (scrollToRealTime resets it).
+    this.chart.timeScale().scrollToPosition(0, false);
   }
 
   // ── EMA overlay ───────────────────────────────────────────────────────────
@@ -475,9 +581,11 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
       lastValueVisible:       true,
       crosshairMarkerVisible: false,
       priceFormat:            { type: 'price', precision: 0, minMove: 1 },
-      title:                  `EMA${EMA_PERIOD}`,
     });
     this.emaSeries.setData(emaData);
+
+    // Store the last EMA value so the live price effect can extend it.
+    this.lastEmaValue = emaVals[emaVals.length - 1];
   }
 
   /** Exponential Moving Average — returns array same length as `closes`. */
@@ -543,15 +651,49 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Pivot-based S/R:
-   * - Resistance: bar whose high exceeds all highs within ±SR_STRENGTH bars.
-   * - Support: bar whose low is below all lows within ±SR_STRENGTH bars.
-   * - Nearby levels within SR_MERGE ticks are merged by count.
-   * - Returns top 6 levels sorted by how many times each was touched.
+   * Volatility-aware pivot S/R:
+   * - Detects swing pivots on both sides of each bar.
+   * - Merges nearby levels using an adaptive tolerance derived from true range.
+   * - Scores levels by touch count, swing significance, and recency.
    */
   private computeSR(data: readonly CandlestickDTO[]): { level: number; isResistance: boolean }[] {
-    type SR = { level: number; isResistance: boolean; count: number };
+    type SR = {
+      level: number;
+      isResistance: boolean;
+      count: number;
+      weight: number;
+      lastIndex: number;
+    };
     const found: SR[] = [];
+    const mergeTolerance = this.computeMergeTolerance(data);
+
+    const addOrMerge = (
+      level: number,
+      isResistance: boolean,
+      pivotWeight: number,
+      index: number,
+    ): void => {
+      const existing = found.find(
+        l => l.isResistance === isResistance && Math.abs(l.level - level) <= mergeTolerance,
+      );
+
+      if (!existing) {
+        found.push({
+          level,
+          isResistance,
+          count: 1,
+          weight: Math.max(1, pivotWeight),
+          lastIndex: index,
+        });
+        return;
+      }
+
+      const nextCount = existing.count + 1;
+      existing.level = ((existing.level * existing.count) + level) / nextCount;
+      existing.count = nextCount;
+      existing.weight += Math.max(1, pivotWeight);
+      existing.lastIndex = Math.max(existing.lastIndex, index);
+    };
 
     for (let i = SR_STRENGTH; i < data.length - SR_STRENGTH; i++) {
       const hi = data[i].high;
@@ -563,9 +705,10 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
           if (j !== i && data[j].high >= hi) { isPivotHigh = false; break; }
         }
         if (isPivotHigh) {
-          const ex = found.find(l => l.isResistance && Math.abs(l.level - hi) <= SR_MERGE);
-          if (ex) ex.count++;
-          else found.push({ level: hi, isResistance: true, count: 1 });
+          const leftLow = Math.min(...data.slice(i - SR_STRENGTH, i).map(c => c.low));
+          const rightLow = Math.min(...data.slice(i + 1, i + 1 + SR_STRENGTH).map(c => c.low));
+          const swing = hi - Math.max(leftLow, rightLow);
+          addOrMerge(hi, true, swing, i);
         }
       }
 
@@ -575,13 +718,67 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {
           if (j !== i && data[j].low <= lo) { isPivotLow = false; break; }
         }
         if (isPivotLow) {
-          const ex = found.find(l => !l.isResistance && Math.abs(l.level - lo) <= SR_MERGE);
-          if (ex) ex.count++;
-          else found.push({ level: lo, isResistance: false, count: 1 });
+          const leftHigh = Math.max(...data.slice(i - SR_STRENGTH, i).map(c => c.high));
+          const rightHigh = Math.max(...data.slice(i + 1, i + 1 + SR_STRENGTH).map(c => c.high));
+          const swing = Math.min(leftHigh, rightHigh) - lo;
+          addOrMerge(lo, false, swing, i);
         }
       }
     }
 
-    return found.sort((a, b) => b.count - a.count).slice(0, 6);
+    const latestIndex = Math.max(1, data.length - 1);
+    const scored = found.map(level => {
+      const recency = level.lastIndex / latestIndex; // 0..1
+      const score = (level.count * 2) + level.weight + recency;
+      return { ...level, score };
+    });
+
+    const strong = scored.filter(level => level.count >= 2);
+    const candidates = strong.length > 0 ? strong : scored;
+
+    return candidates
+      .sort((a, b) => b.score - a.score)
+      .slice(0, SR_MAX_LEVELS)
+      .map(({ level, isResistance }) => ({ level, isResistance }));
+  }
+
+  /**
+   * Adaptive merge tolerance in ticks from recent true-range behavior.
+   * This avoids over-clustering in low-vol markets and under-clustering in high-vol markets.
+   */
+  private computeMergeTolerance(data: readonly CandlestickDTO[]): number {
+    if (data.length < 2) return SR_MIN_MERGE_TICKS;
+
+    const trs: number[] = [];
+    for (let i = 1; i < data.length; i++) {
+      const curr = data[i];
+      const prevClose = data[i - 1].close;
+      const tr = Math.max(
+        curr.high - curr.low,
+        Math.abs(curr.high - prevClose),
+        Math.abs(curr.low - prevClose),
+      );
+      if (Number.isFinite(tr) && tr > 0) trs.push(tr);
+    }
+
+    if (trs.length === 0) return SR_MIN_MERGE_TICKS;
+
+    const avgTr = trs.reduce((sum, v) => sum + v, 0) / trs.length;
+    const tolerance = Math.round(avgTr * 0.25);
+    return Math.max(SR_MIN_MERGE_TICKS, tolerance);
+  }
+
+  private updateYAxisAnchor(_rawData: readonly CandlestickDTO[]): void {
+    // Y-axis range is now locked via autoscaleInfoProvider on the price series.
+    // This method is kept as a no-op for call-site compatibility.
+    if (this.yAxisAnchorSeries) {
+      this.chart?.removeSeries(this.yAxisAnchorSeries);
+      this.yAxisAnchorSeries = null;
+    }
+  }
+
+  private toBarSpacing(zoomPercent: number): number {
+    const normalized = Math.max(25, Math.min(400, zoomPercent));
+    return BASE_BAR_SPACING * (normalized / 100);
   }
 }

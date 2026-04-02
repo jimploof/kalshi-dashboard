@@ -1,1 +1,15 @@
-<div #chartContainer class="chart-container"></div>
+<div class="chart-surface">
+	<div #chartContainer class="chart-container"></div>
+
+	<div class="chart-blips-layer" aria-hidden="true">
+		@for (blip of blips(); track blip.ticker) {
+			<div
+				class="chart-point-blip"
+				[style.left.px]="blip.x"
+				[style.top.px]="blip.y"
+			>
+				<app-blip-marker [color]="blip.colorRgb" />
+			</div>
+		}
+	</div>
+</div>

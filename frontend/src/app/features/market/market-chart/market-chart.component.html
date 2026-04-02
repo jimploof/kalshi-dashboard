@@ -1,27 +1,31 @@
 <div #chartContainer class="chart-container"></div>
 <div class="chart-legend">
-  <span class="legend-item legend-item--up">
+  <button class="legend-item legend-item--up" type="button" (click)="openLegendHelp('candle-up')" aria-label="Bullish candle help">
     <span class="legend-swatch legend-swatch--up"></span>Bullish candle
-  </span>
-  <span class="legend-item legend-item--dn">
+  </button>
+  <button class="legend-item legend-item--dn" type="button" (click)="openLegendHelp('candle-dn')" aria-label="Bearish candle help">
     <span class="legend-swatch legend-swatch--dn"></span>Bearish candle
-  </span>
-  <span class="legend-item legend-item--ema">
+  </button>
+  <button class="legend-item legend-item--ema" type="button" (click)="openLegendHelp('ema')" aria-label="EMA help">
     <span class="legend-swatch legend-swatch--ema"></span>EMA†20
-  </span>
-  <span class="legend-item legend-item--bid">
+  </button>
+  <button class="legend-item legend-item--bid" type="button" (click)="openLegendHelp('bid')" aria-label="YES Bid help">
     <span class="legend-swatch legend-swatch--bid"></span>YES Bid
-  </span>
-  <span class="legend-item legend-item--ask">
+  </button>
+  <button class="legend-item legend-item--ask" type="button" (click)="openLegendHelp('ask')" aria-label="YES Ask help">
     <span class="legend-swatch legend-swatch--ask"></span>YES Ask
-  </span>
-  <span class="legend-item legend-item--sr-s">
+  </button>
+  <button class="legend-item legend-item--sr-s" type="button" (click)="openLegendHelp('support')" aria-label="Support help">
     <span class="legend-swatch legend-swatch--sr-s"></span>Support
-  </span>
-  <span class="legend-item legend-item--sr-r">
+  </button>
+  <button class="legend-item legend-item--sr-r" type="button" (click)="openLegendHelp('resistance')" aria-label="Resistance help">
     <span class="legend-swatch legend-swatch--sr-r"></span>Resistance
-  </span>
-  <span class="legend-item legend-item--vol">
+  </button>
+  <button class="legend-item legend-item--vol" type="button" (click)="openLegendHelp('volume')" aria-label="Volume help">
     <span class="legend-swatch legend-swatch--vol"></span>Volume
-  </span>
+  </button>
 </div>
+
+@if (activeLegendHelp()) {
+  <app-chart-legend-help-modal [itemKey]="activeLegendHelp()!" (close)="closeLegendHelp()" />
+}

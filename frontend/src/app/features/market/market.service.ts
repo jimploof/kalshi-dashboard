@@ -125,6 +125,26 @@ export type EventCandlesticksResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Queue position DTOs
+// ---------------------------------------------------------------------------
+
+export type QueuePositionDTO = {
+  readonly order_id: string;
+  readonly market_ticker: string;
+  readonly queue_position_fp: number;
+};
+
+export type QueuePositionsResponse = {
+  readonly status: string;
+  readonly ticker: string;
+  readonly order_count: number;
+  readonly avg_queue_position_fp: number | null;
+  readonly max_queue_position_fp: number | null;
+  readonly total_queue_position_fp: number | null;
+  readonly queue_positions: readonly QueuePositionDTO[];
+};
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -194,6 +214,13 @@ export class MarketService {
     }
     return this.api.get<EventCandlesticksResponse>(
       `/market/event/${encodeURIComponent(eventTicker)}/candlesticks?${params.toString()}`,
+    );
+  }
+
+  /** Queue positions for resting orders on a market (authenticated backend proxy). */
+  getQueuePositions(ticker: string): Observable<QueuePositionsResponse> {
+    return this.api.get<QueuePositionsResponse>(
+      `/market/${encodeURIComponent(ticker)}/queue_positions`,
     );
   }
 }

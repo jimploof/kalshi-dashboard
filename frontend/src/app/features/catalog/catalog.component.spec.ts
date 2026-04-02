@@ -119,4 +119,86 @@ describe('CatalogComponent', () => {
     fixture.detectChanges();
     expect(screen.getByText(/Refreshing/i)).toBeTruthy();
   });
+
+  it('filters displayed cards by search query', async () => {
+    const cards = [
+      {
+        event_ticker: 'E1', series_ticker: 'S1', category: 'Sports',
+        title: 'Lakers vs Celtics', sub_title: 'NBA Game', mutually_exclusive: false,
+        last_updated_ts: null, market_count: 1, nearest_close_time: null,
+        total_volume_fp: '100.00', total_open_interest_fp: '10.00', top_markets: [],
+      },
+      {
+        event_ticker: 'E2', series_ticker: 'S2', category: 'Sports',
+        title: 'Bitcoin Price', sub_title: 'Crypto', mutually_exclusive: false,
+        last_updated_ts: null, market_count: 1, nearest_close_time: null,
+        total_volume_fp: '50.00', total_open_interest_fp: '5.00', top_markets: [],
+      },
+    ];
+    const { fixture } = await render(CatalogComponent, {
+      providers: [
+        { provide: CatalogService, useValue: makeMockService({ cards, total: 2 }) },
+      ],
+    });
+    const state = fixture.componentInstance.state;
+    state.selectCategory('Sports');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    // Both cards visible before search
+    expect(screen.getByText('Lakers vs Celtics')).toBeTruthy();
+    expect(screen.getByText('Bitcoin Price')).toBeTruthy();
+
+    // Type search query — only matching card shown
+    const searchInput = screen.getByPlaceholderText('Search events…');
+    (searchInput as HTMLInputElement).value = 'lakers';
+    searchInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(screen.getByText('Lakers vs Celtics')).toBeTruthy();
+    expect(screen.queryByText('Bitcoin Price')).toBeNull();
+  });
+
+  it('shows all cards when search query is cleared', async () => {
+    const cards = [
+      {
+        event_ticker: 'E1', series_ticker: 'S1', category: 'Sports',
+        title: 'Alpha Event', sub_title: null, mutually_exclusive: false,
+        last_updated_ts: null, market_count: 1, nearest_close_time: null,
+        total_volume_fp: '10.00', total_open_interest_fp: '1.00', top_markets: [],
+      },
+      {
+        event_ticker: 'E2', series_ticker: 'S2', category: 'Sports',
+        title: 'Beta Event', sub_title: null, mutually_exclusive: false,
+        last_updated_ts: null, market_count: 1, nearest_close_time: null,
+        total_volume_fp: '10.00', total_open_interest_fp: '1.00', top_markets: [],
+      },
+    ];
+    const { fixture } = await render(CatalogComponent, {
+      providers: [
+        { provide: CatalogService, useValue: makeMockService({ cards, total: 2 }) },
+      ],
+    });
+    const state = fixture.componentInstance.state;
+    state.selectCategory('Sports');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const searchInput = screen.getByPlaceholderText('Search events…') as HTMLInputElement;
+
+    // Filter to one card
+    searchInput.value = 'alpha';
+    searchInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(screen.queryByText('Beta Event')).toBeNull();
+
+    // Clear search — both return
+    searchInput.value = '';
+    searchInput.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    expect(screen.getByText('Alpha Event')).toBeTruthy();
+    expect(screen.getByText('Beta Event')).toBeTruthy();
+  });
 });

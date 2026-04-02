@@ -8,7 +8,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { EMPTY, catchError, switchMap, take } from 'rxjs';
+import { EMPTY, catchError, switchMap } from 'rxjs';
 
 import {
   CatalogService,
@@ -74,9 +74,29 @@ export class CatalogComponent {
   // ── Event-cards data signals ───────────────────────────────────────────────
   readonly cards        = signal<readonly EventCardSummaryDTO[]>([]);
   readonly cardsLoading = signal(false);
-  readonly nextCursor   = signal<string | null>(null);
   readonly total        = signal(0);
   readonly stale        = signal(false);
+
+  // ── Client-side search ─────────────────────────────────────────────────────
+  readonly searchQuery = signal('');
+  readonly filteredCards = computed(() => {
+    const query = this.searchQuery().trim().toLowerCase();
+    const all = this.cards();
+    if (!query) return all;
+    return all.filter(card => {
+      const haystack = [
+        card.title,
+        card.sub_title,
+        card.event_ticker,
+        card.series_ticker,
+        ...(card.top_markets ?? []).map(m => m.yes_sub_title),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  });
 
   // ── Markets drill-in signals ───────────────────────────────────────────────
   readonly markets        = signal<readonly MarketDTO[]>([]);
@@ -95,7 +115,7 @@ export class CatalogComponent {
     toObservable(this._browseKey).pipe(
       switchMap(key => {
         this.cards.set([]);
-        this.nextCursor.set(null);
+        this.searchQuery.set('');
         this.stale.set(false);
         if (!key) {
           this.cardsLoading.set(false);
@@ -105,7 +125,6 @@ export class CatalogComponent {
         return this.service.getEventCards(key.category, {
           sortBy: key.sortBy,
           sortOrder: key.sortOrder,
-          limit: 24,
         }).pipe(
           catchError(() => { this.cardsLoading.set(false); return EMPTY; }),
         );
@@ -113,7 +132,6 @@ export class CatalogComponent {
       takeUntilDestroyed(this.destroyRef),
     ).subscribe(r => {
       this.cards.set(r.cards ?? []);
-      this.nextCursor.set(r.next_cursor ?? null);
       this.total.set(r.total);
       this.stale.set(r.stale);
       this.cardsLoading.set(false);
@@ -145,26 +163,8 @@ export class CatalogComponent {
     }
   }
 
-  loadMore(): void {
-    const cursor   = this.nextCursor();
-    const category = this.state.selectedCategory();
-    if (!cursor || !category || this.cardsLoading()) return;
-    this.cardsLoading.set(true);
-    this.service.getEventCards(category, {
-      sortBy:    this.sortBy(),
-      sortOrder: this.sortOrder(),
-      limit:     24,
-      cursor,
-    }).pipe(
-      take(1),
-      catchError(() => { this.cardsLoading.set(false); return EMPTY; }),
-    ).subscribe(r => {
-      this.cards.update(existing => [...existing, ...(r.cards ?? [])]);
-      this.nextCursor.set(r.next_cursor ?? null);
-      this.total.set(r.total);
-      this.stale.set(r.stale);
-      this.cardsLoading.set(false);
-    });
+  setSearchQuery(query: string): void {
+    this.searchQuery.set(query);
   }
 
   onEventCardSelected(ticker: string): void {

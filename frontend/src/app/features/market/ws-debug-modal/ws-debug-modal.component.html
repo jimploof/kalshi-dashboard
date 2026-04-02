@@ -1,0 +1,140 @@
+<div class="dbg-backdrop" (click)="close()">
+  <div class="dbg-modal" (click)="$event.stopPropagation()">
+
+    <div class="dbg-modal__header">
+      <span class="dbg-modal__title">WS DEBUG</span>
+      <div class="dbg-modal__actions">
+        <button class="dbg-modal__copy" (click)="copyToClipboard(diagnosticDump)" title="Copy all diagnostics">📋 Copy</button>
+        <button class="dbg-modal__close" (click)="close()">✕</button>
+      </div>
+    </div>
+
+    <!-- ── Connection ──────────────────────────────── -->
+    <section class="dbg-section">
+      <div class="dbg-section__heading">Connection</div>
+      <div class="dbg-grid">
+        <span class="dbg-grid__label">Status</span>
+        <span class="dbg-grid__value">
+          @if (ws.connected()) {
+            <span class="dbg-badge dbg-badge--ok">CONNECTED</span>
+          } @else {
+            <span class="dbg-badge dbg-badge--err">DISCONNECTED</span>
+          }
+        </span>
+        @if (ws.wsError()) {
+          <span class="dbg-grid__label">Error</span>
+          <span class="dbg-grid__value dbg-grid__value--err">{{ ws.wsError() }}</span>
+        }
+      </div>
+    </section>
+
+    <!-- ── Message Counts ──────────────────────────────── -->
+    <section class="dbg-section">
+      <div class="dbg-section__heading">Message Counts</div>
+      <div class="dbg-grid">
+        <span class="dbg-grid__label">Total messages</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.messageCount() }}</span>
+        <span class="dbg-grid__label">Ticker (T)</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.tickerCount() }}</span>
+        <span class="dbg-grid__label">Ticker pulse</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.tickerPulse() }}</span>
+        <span class="dbg-grid__label">Last ticker at</span>
+        <span class="dbg-grid__value">{{ ws.lastTickerAt()?.toLocaleTimeString() ?? '—' }}</span>
+        <span class="dbg-grid__label">OB Snapshot (S)</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.obSnapshotCount() }}</span>
+        <span class="dbg-grid__label">OB Delta (D)</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.obDeltaCount() }}</span>
+        <span class="dbg-grid__label">Unknown (?)</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">
+          {{ ws.unknownCount() }}
+          @if (ws.unknownCount() > 0) {
+            <span class="dbg-badge dbg-badge--warn">CHECK RAW</span>
+          }
+        </span>
+        <span class="dbg-grid__label">Last type</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.lastMessageType() ?? '—' }}</span>
+        <span class="dbg-grid__label">Last received</span>
+        <span class="dbg-grid__value">{{ ws.lastMessageAt()?.toLocaleTimeString() ?? '—' }}</span>
+      </div>
+    </section>
+
+    <!-- ── Live Signal Values ──────────────────────────────── -->
+    <section class="dbg-section">
+      <div class="dbg-section__heading">Live Signal Values</div>
+      <div class="dbg-grid">
+        <span class="dbg-grid__label">yesBid</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.yesBid() ?? 'null' }}</span>
+        <span class="dbg-grid__label">yesAsk</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.yesAsk() ?? 'null' }}</span>
+        <span class="dbg-grid__label">lastPrice</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.lastPrice() ?? 'null' }}</span>
+        <span class="dbg-grid__label">volume</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.volume() ?? 'null' }}</span>
+        <span class="dbg-grid__label">openInterest</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.openInterest() ?? 'null' }}</span>
+      </div>
+    </section>
+
+    <!-- ── Orderbook State ──────────────────────────────── -->
+    <section class="dbg-section">
+      <div class="dbg-section__heading">Orderbook State</div>
+      <div class="dbg-grid">
+        <span class="dbg-grid__label">YES levels</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.yesBids().length }}</span>
+        <span class="dbg-grid__label">NO levels</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.noBids().length }}</span>
+        <span class="dbg-grid__label">Spread</span>
+        <span class="dbg-grid__value dbg-grid__value--mono">{{ ws.spread() ?? 'null' }}¢</span>
+      </div>
+      @if (ws.yesBids().length > 0) {
+        <div class="dbg-section__subheading">Top 5 YES Bids</div>
+        <div class="dbg-grid">
+          @for (level of ws.yesBids().slice(0, 5); track level[0]) {
+            <span class="dbg-grid__label">{{ level[0] }}¢</span>
+            <span class="dbg-grid__value dbg-grid__value--mono">qty={{ level[1] }}</span>
+          }
+        </div>
+      }
+      @if (ws.noBids().length > 0) {
+        <div class="dbg-section__subheading">Top 5 NO Bids</div>
+        <div class="dbg-grid">
+          @for (level of ws.noBids().slice(0, 5); track level[0]) {
+            <span class="dbg-grid__label">{{ level[0] }}¢</span>
+            <span class="dbg-grid__value dbg-grid__value--mono">qty={{ level[1] }}</span>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- ── Ticker Sample ──────────────────────────────── -->
+    <section class="dbg-section">
+      <div class="dbg-section__heading">
+        Ticker Message Sample (after normalization)
+        @if (ws.lastTickerSample()) {
+          <button class="dbg-modal__copy dbg-modal__copy--small" (click)="copyToClipboard(ws.lastTickerSample())">📋</button>
+        }
+      </div>
+      @if (ws.lastTickerSample()) {
+        <pre class="dbg-raw">{{ ws.lastTickerSample() }}</pre>
+      } @else {
+        <p class="dbg-empty">No ticker messages received yet.</p>
+      }
+    </section>
+
+    <!-- ── Raw Sample ──────────────────────────────── -->
+    <section class="dbg-section">
+      <div class="dbg-section__heading">
+        Raw Message Sample
+        @if (ws.lastRawSample()) {
+          <button class="dbg-modal__copy dbg-modal__copy--small" (click)="copyToClipboard(ws.lastRawSample())">📋</button>
+        }
+      </div>
+      @if (ws.lastRawSample()) {
+        <pre class="dbg-raw">{{ ws.lastRawSample() }}</pre>
+      } @else {
+        <p class="dbg-empty">No messages received yet.</p>
+      }
+    </section>
+
+  </div>
+</div>

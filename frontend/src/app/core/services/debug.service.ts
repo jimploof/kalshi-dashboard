@@ -33,9 +33,23 @@ export type SnapshotBuildRecord = {
   readonly error: string | null;
 };
 
+export type ConnectivityStatus = {
+  readonly rest_url: string;
+  readonly rest_configured: boolean;
+  readonly rest_status: 'active' | 'error' | 'no_calls';
+  readonly rest_last_call_at: string | null;
+  readonly rest_last_status_code: number | null;
+  readonly ws_url: string;
+  readonly ws_configured: boolean;
+  readonly ws_connected: boolean;
+  readonly ws_subscribed_tickers: readonly string[];
+  readonly ws_frontend_clients: Readonly<Record<string, number>>;
+};
+
 export type DebugStatus = {
   readonly debug_mode: boolean;
   readonly server_time_utc: string;
+  readonly connectivity: ConnectivityStatus | null;
   readonly event_card_refresh_in_progress: boolean;
   readonly snapshot_metrics: SnapshotBuildRecord | null;
   readonly recent_kalshi_calls: readonly KalshiCallRecord[];

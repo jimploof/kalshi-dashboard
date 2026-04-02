@@ -1,0 +1,35 @@
+<div class="help-backdrop" (click)="close.emit()" aria-hidden="true"></div>
+
+<div class="help-modal" role="dialog" aria-modal="true" [attr.aria-label]="entry.title + ' help'">
+  <div class="help-modal__header">
+    <span class="help-modal__title">{{ entry.title }}</span>
+    <button class="help-modal__close" type="button" (click)="close.emit()" aria-label="Close">✕</button>
+  </div>
+
+  <div class="help-modal__body">
+    <div class="help-modal__section">
+      <div class="help-modal__section-label">What is this?</div>
+      <p class="help-modal__text">{{ entry.what }}</p>
+    </div>
+
+    <div class="help-modal__section">
+      <div class="help-modal__section-label">Timing</div>
+      <p class="help-modal__text">{{ entry.timing }}</p>
+    </div>
+
+    <div class="help-modal__section">
+      <div class="help-modal__section-label">What each row means</div>
+      @for (row of entry.rows; track row.label) {
+        <div class="help-modal__row">
+          <span class="help-modal__row-label">{{ row.label }}</span>
+          <span class="help-modal__row-text">{{ row.meaning }}</span>
+        </div>
+      }
+    </div>
+
+    <div class="help-modal__section help-modal__section--trade">
+      <div class="help-modal__section-label">How to use it for trading</div>
+      <p class="help-modal__text">{{ entry.howToUse }}</p>
+    </div>
+  </div>
+</div>
