@@ -145,6 +145,94 @@ export type QueuePositionsResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Signal event logging DTOs
+// ---------------------------------------------------------------------------
+
+export type SignalEventRecord = {
+  readonly id: number;
+  readonly created_at: string;
+  readonly market_ticker: string;
+  readonly event_ticker: string | null;
+  readonly mode: 'strict' | 'fast' | 'open';
+  readonly signal_direction: 'BUY' | 'SELL' | 'WAIT';
+  readonly confidence: number;
+  readonly buy_score: number;
+  readonly sell_score: number;
+  readonly entry_note: string | null;
+  readonly stop_note: string | null;
+  readonly target_note: string | null;
+  readonly conditions_met: Record<string, unknown>;
+  readonly diagnostics: Record<string, unknown>;
+  readonly source: string;
+};
+
+export type SignalEventCreateRequest = {
+  readonly market_ticker: string;
+  readonly event_ticker: string | null;
+  readonly mode: 'strict' | 'fast' | 'open';
+  readonly signal_direction: 'BUY' | 'SELL' | 'WAIT';
+  readonly confidence: number;
+  readonly buy_score: number;
+  readonly sell_score: number;
+  readonly entry_note: string;
+  readonly stop_note: string;
+  readonly target_note: string;
+  readonly conditions_met: Record<string, unknown>;
+  readonly diagnostics: Record<string, unknown>;
+  readonly source: string;
+};
+
+export type SignalEventCreateResponse = {
+  readonly status: 'success' | 'failed';
+  readonly event_id: number | null;
+};
+
+export type SignalEventsListResponse = {
+  readonly status: 'success' | 'failed';
+  readonly events: readonly SignalEventRecord[];
+};
+
+export type SignalLifecycleEventRecord = {
+  readonly id: number;
+  readonly created_at: string;
+  readonly market_ticker: string;
+  readonly event_ticker: string | null;
+  readonly mode: 'strict' | 'fast' | 'open';
+  readonly lifecycle_state:
+    | 'SIGNAL_EMITTED'
+    | 'ENTRY_ARMED'
+    | 'ENTRY_FILLED'
+    | 'POSITION_MANAGE'
+    | 'EXIT_SIGNALLED'
+    | 'EXIT_FILLED'
+    | 'OUTCOME_FINALIZED';
+  readonly signal_direction: 'BUY' | 'SELL' | 'WAIT' | null;
+  readonly position_side: 'FLAT' | 'LONG';
+  readonly trigger_price_cents: number | null;
+  readonly elapsed_ms: number | null;
+  readonly payload: Record<string, unknown>;
+  readonly source: string;
+};
+
+export type SignalLifecycleEventCreateRequest = {
+  readonly market_ticker: string;
+  readonly event_ticker: string | null;
+  readonly mode: 'strict' | 'fast' | 'open';
+  readonly lifecycle_state: SignalLifecycleEventRecord['lifecycle_state'];
+  readonly signal_direction: 'BUY' | 'SELL' | 'WAIT' | null;
+  readonly position_side: 'FLAT' | 'LONG';
+  readonly trigger_price_cents: number | null;
+  readonly elapsed_ms: number | null;
+  readonly payload: Record<string, unknown>;
+  readonly source: string;
+};
+
+export type SignalLifecycleEventsListResponse = {
+  readonly status: 'success' | 'failed';
+  readonly events: readonly SignalLifecycleEventRecord[];
+};
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -222,5 +310,47 @@ export class MarketService {
     return this.api.get<QueuePositionsResponse>(
       `/market/${encodeURIComponent(ticker)}/queue_positions`,
     );
+  }
+
+  /** Persist a signal transition/event with diagnostics to PostgreSQL via backend. */
+  createSignalEvent(payload: SignalEventCreateRequest): Observable<SignalEventCreateResponse> {
+    return this.api.post<SignalEventCreateResponse>('/signal-events', payload);
+  }
+
+  /** Fetch recent signal events for an optional market/event filter. */
+  getSignalEvents(opts: {
+    readonly marketTicker?: string;
+    readonly eventTicker?: string;
+    readonly mode?: 'strict' | 'fast' | 'open';
+    readonly direction?: 'BUY' | 'SELL' | 'WAIT';
+    readonly limit?: number;
+  }): Observable<SignalEventsListResponse> {
+    const params = new URLSearchParams();
+    if (opts.marketTicker) params.set('market_ticker', opts.marketTicker);
+    if (opts.eventTicker) params.set('event_ticker', opts.eventTicker);
+    if (opts.mode) params.set('mode', opts.mode);
+    if (opts.direction) params.set('direction', opts.direction);
+    params.set('limit', String(opts.limit ?? 200));
+    return this.api.get<SignalEventsListResponse>(`/signal-events?${params.toString()}`);
+  }
+
+  createSignalLifecycleEvent(payload: SignalLifecycleEventCreateRequest): Observable<SignalEventCreateResponse> {
+    return this.api.post<SignalEventCreateResponse>('/signal-events/lifecycle', payload);
+  }
+
+  getSignalLifecycleEvents(opts: {
+    readonly marketTicker?: string;
+    readonly eventTicker?: string;
+    readonly mode?: 'strict' | 'fast' | 'open';
+    readonly lifecycleState?: SignalLifecycleEventRecord['lifecycle_state'];
+    readonly limit?: number;
+  }): Observable<SignalLifecycleEventsListResponse> {
+    const params = new URLSearchParams();
+    if (opts.marketTicker) params.set('market_ticker', opts.marketTicker);
+    if (opts.eventTicker) params.set('event_ticker', opts.eventTicker);
+    if (opts.mode) params.set('mode', opts.mode);
+    if (opts.lifecycleState) params.set('lifecycle_state', opts.lifecycleState);
+    params.set('limit', String(opts.limit ?? 400));
+    return this.api.get<SignalLifecycleEventsListResponse>(`/signal-events/lifecycle?${params.toString()}`);
   }
 }

@@ -143,6 +143,12 @@ class KalshiWsManager:
             self._subscriptions[ticker] = set()
 
         self._subscriptions[ticker].add(client_ws)
+        logger.info(
+            "subscribe_client: ticker=%s, kalshi_ws=%s, already_subscribed=%s",
+            ticker,
+            self._kalshi_ws is not None,
+            ticker in self._kalshi_subscribed,
+        )
 
         # Send Kalshi subscribe only if connected and not already subscribed.
         if (
@@ -235,6 +241,20 @@ class KalshiWsManager:
         """Return True when RSA credentials are available."""
         return bool(self._api_key_id) and self._private_key is not None
 
+    def connectivity_status(self) -> dict[str, object]:
+        """Return a snapshot of WS connectivity for the debug panel."""
+        return {
+            "url": self._ws_url,
+            "connected": self._kalshi_ws is not None,
+            "configured": self.is_configured(),
+            "subscribed_tickers": sorted(self._kalshi_subscribed),
+            "frontend_clients": {
+                ticker: len(clients)
+                for ticker, clients in self._subscriptions.items()
+                if clients
+            },
+        }
+
     def _auth_headers(self) -> dict[str, str]:
         """Build the three required Kalshi WS auth headers."""
         ws_path = urlparse(self._ws_url).path  # e.g. /trade-api/ws/v2
@@ -264,7 +284,7 @@ class KalshiWsManager:
             "id": self._cmd_id,
             "cmd": "subscribe",
             "params": {
-                "channels": ["orderbook_delta", "ticker"],
+                "channels": ["orderbook_delta", "ticker", "trade"],
                 "market_tickers": tickers,
             },
         }
@@ -288,7 +308,7 @@ class KalshiWsManager:
             "id": self._cmd_id,
             "cmd": "unsubscribe",
             "params": {
-                "channels": ["orderbook_delta", "ticker"],
+                "channels": ["orderbook_delta", "ticker", "trade"],
                 "market_tickers": tickers,
             },
         }
@@ -305,12 +325,159 @@ class KalshiWsManager:
     # Message dispatch
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _dollars_to_cents(val: str | None) -> int | None:
+        """Convert a dollar string like ``"0.4500"`` to an integer cent value (45)."""
+        if val is None:
+            return None
+        try:
+            return round(float(val) * 100)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _parse_fp(val: str | None) -> float | None:
+        """Parse a fixed-point string like ``"800.00"`` to a float."""
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+
+    # Counter for debug logging — only log first few ticker messages.
+    _ticker_log_count: int = 0
+
+    def _normalize_ticker(self, raw_msg: dict) -> dict:
+        """Normalize a raw Kalshi ``ticker`` channel message into the internal DTO.
+
+        Handles two possible upstream formats:
+        - Dollar-string fields: ``yes_bid_dollars`` (str), ``volume_fp`` (str),
+          etc.  These are converted to cent integers and plain numbers.
+        - Direct numeric fields: ``yes_bid`` (int/float), ``volume``
+          (int/float), etc.  These are passed through as-is.
+
+        Only fields present in the raw message are included — absent fields are
+        omitted so the frontend can distinguish "not sent" from "sent as null".
+        """
+        # DEBUG: Log raw ticker keys for first 5 messages to identify field names.
+        self._ticker_log_count += 1
+        if self._ticker_log_count <= 5:
+            logger.warning(
+                "RAW TICKER MSG #%d keys=%s full=%s",
+                self._ticker_log_count,
+                sorted(raw_msg.keys()),
+                raw_msg,
+            )
+
+        result: dict = {"market_ticker": raw_msg.get("market_ticker")}
+
+        # --- yes_bid ---
+        if "yes_bid_dollars" in raw_msg:
+            result["yes_bid"] = self._dollars_to_cents(raw_msg["yes_bid_dollars"])
+        elif "yes_bid" in raw_msg:
+            result["yes_bid"] = raw_msg["yes_bid"]
+
+        # --- yes_ask ---
+        if "yes_ask_dollars" in raw_msg:
+            result["yes_ask"] = self._dollars_to_cents(raw_msg["yes_ask_dollars"])
+        elif "yes_ask" in raw_msg:
+            result["yes_ask"] = raw_msg["yes_ask"]
+
+        # --- last_price ---
+        if "last_price_dollars" in raw_msg:
+            result["last_price"] = self._dollars_to_cents(raw_msg["last_price_dollars"])
+        elif "price_dollars" in raw_msg:
+            result["last_price"] = self._dollars_to_cents(raw_msg["price_dollars"])
+        elif "last_price" in raw_msg:
+            result["last_price"] = raw_msg["last_price"]
+        elif "price" in raw_msg:
+            result["last_price"] = raw_msg["price"]
+
+        # --- volume ---
+        if "volume_fp" in raw_msg:
+            result["volume"] = self._parse_fp(raw_msg["volume_fp"])
+        elif "volume" in raw_msg:
+            result["volume"] = raw_msg["volume"]
+
+        # --- open_interest ---
+        if "open_interest_fp" in raw_msg:
+            result["open_interest"] = self._parse_fp(raw_msg["open_interest_fp"])
+        elif "open_interest" in raw_msg:
+            result["open_interest"] = raw_msg["open_interest"]
+
+        if self._ticker_log_count <= 5:
+            logger.warning(
+                "NORMALIZED TICKER #%d result=%s",
+                self._ticker_log_count,
+                result,
+            )
+        return result
+
+    def _normalize_orderbook_delta(self, raw_msg: dict) -> dict:
+        """Normalize a raw Kalshi ``orderbook_delta`` channel message.
+
+        Kalshi sends ``price_dollars`` (string) and ``delta_fp`` (string).
+        The internal contract uses ``price`` (cents int) and ``delta`` (float).
+        """
+        return {
+            "market_ticker": raw_msg.get("market_ticker"),
+            "price": self._dollars_to_cents(raw_msg.get("price_dollars")),
+            "delta": self._parse_fp(raw_msg.get("delta_fp")),
+            "side": raw_msg.get("side"),
+        }
+
+    def _normalize_orderbook_snapshot(self, raw_msg: dict) -> dict:
+        """Normalize a raw Kalshi ``orderbook_snapshot`` channel message.
+
+        Kalshi sends ``yes`` / ``no`` as lists of ``[price_dollars, qty_fp]``
+        pairs (strings).  The internal contract uses ``[cents_int, qty_int]``
+        tuples.
+        """
+        def normalize_levels(levels: list) -> list[list[int]]:
+            result: list[list[int]] = []
+            for entry in levels:
+                if not isinstance(entry, (list, tuple)) or len(entry) < 2:
+                    continue
+                price_cents = self._dollars_to_cents(str(entry[0]))
+                qty = self._parse_fp(str(entry[1]))
+                if price_cents is not None and qty is not None:
+                    result.append([price_cents, round(qty)])
+            return result
+
+        return {
+            "market_ticker": raw_msg.get("market_ticker"),
+            "yes": normalize_levels(raw_msg.get("yes", [])),
+            "no": normalize_levels(raw_msg.get("no", [])),
+        }
+
+    def _normalize_trade(self, raw_msg: dict) -> dict:
+        """Normalize a raw Kalshi ``trade`` channel message.
+
+        AsyncAPI documents fields:
+          trade_id, market_ticker, yes_price_dollars, no_price_dollars,
+          count_fp, taker_side, ts
+        """
+        return {
+            "trade_id": raw_msg.get("trade_id"),
+            "market_ticker": raw_msg.get("market_ticker"),
+            "yes_price": self._dollars_to_cents(raw_msg.get("yes_price_dollars")),
+            "no_price": self._dollars_to_cents(raw_msg.get("no_price_dollars")),
+            "count": self._parse_fp(raw_msg.get("count_fp")),
+            "taker_side": raw_msg.get("taker_side"),
+            "ts": raw_msg.get("ts"),
+        }
+
     async def _dispatch_message(self, raw: str) -> None:
         """Parse a Kalshi WS message and fan-out to relevant frontend clients.
 
         Kalshi WS v2 message schema:
           {"type": "ticker"|"orderbook_snapshot"|"orderbook_delta"|"subscribed"|...,
            "sid": <int>, "seq": <int>, "msg": {..."market_ticker": "..."}}
+
+        The raw Kalshi payload is normalized into internal DTO field names
+        before relaying to frontend clients (Rule 12: normalize external
+        payloads into internal models).
         """
         try:
             msg: dict = json.loads(raw)
@@ -323,6 +490,8 @@ class KalshiWsManager:
         if msg_type in ("subscribed", "unsubscribed", "error"):
             if msg_type == "error":
                 logger.error("Kalshi WS error message received: %s", msg)
+            else:
+                logger.info("Kalshi WS %s confirmation: %s", msg_type, msg.get("msg", {}).get("channel", ""))
             return
 
         msg_body = msg.get("msg") or {}
@@ -334,13 +503,33 @@ class KalshiWsManager:
         if not subscribers:
             return
 
+        # Normalize the raw Kalshi payload into internal DTO field names.
+        if msg_type == "ticker":
+            normalized_body = self._normalize_ticker(msg_body)
+        elif msg_type == "orderbook_delta":
+            normalized_body = self._normalize_orderbook_delta(msg_body)
+        elif msg_type == "orderbook_snapshot":
+            normalized_body = self._normalize_orderbook_snapshot(msg_body)
+        elif msg_type == "trade":
+            normalized_body = self._normalize_trade(msg_body)
+        else:
+            normalized_body = msg_body
+
+        normalized_msg = {
+            "type": msg_type,
+            "sid": msg.get("sid"),
+            "seq": msg.get("seq"),
+            "msg": normalized_body,
+        }
+
         # Fan-out to all subscribed frontend WebSocket connections.
         dead: list[WebSocket] = []
         for client_ws in list(subscribers):
             try:
-                await client_ws.send_json(msg)
+                await client_ws.send_json(normalized_msg)
             except Exception:  # noqa: BLE001
                 dead.append(client_ws)
+                logger.warning("Failed to relay to client for %s — marking dead", ticker)
 
         for ws in dead:
             subscribers.discard(ws)

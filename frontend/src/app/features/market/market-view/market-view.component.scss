@@ -549,3 +549,339 @@
   flex-shrink: 0;
 }
 
+// ── Collapsible section panels ────────────────────────────────────────────
+
+.section-panel {
+  flex-shrink: 0;
+  background: #0d1117;
+
+  &--signal {
+    border-left: 3px solid #30363d;
+    transition: border-left-color 0.2s;
+  }
+
+  &--buy  { border-left-color: #26a69a; }
+  &--sell { border-left-color: #ef5350; }
+}
+
+.section-panel__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 14px;
+  background: #161b22;
+  border: none;
+  border-bottom: 1px solid #21262d;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+
+  &:hover { background: #1c2128; }
+}
+
+.section-panel__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.section-panel__chevron {
+  margin-left: auto;
+  color: #484f58;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.section-panel__body {
+  padding: 8px 14px;
+}
+
+// ── Signal direction badge ────────────────────────────────────────────────
+
+.signal-direction-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+
+  &--buy  { background: #1a4a2f; color: #56d364; border: 1px solid #2ea043; }
+  &--sell { background: #4a1a1a; color: #ef5350; border: 1px solid #ef5350; }
+  &--wait { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
+}
+
+.signal-mode-chip {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+
+  &--strict {
+    color: #9ec3ea;
+    border-color: #3f6e9a;
+    background: rgba(23, 45, 66, 0.85);
+  }
+
+  &--loose {
+    color: #b6edc5;
+    border-color: #3e8a56;
+    background: rgba(23, 58, 35, 0.85);
+  }
+
+  &--open {
+    color: #ffe3a3;
+    border-color: #a7802f;
+    background: rgba(65, 46, 14, 0.85);
+  }
+}
+
+.signal-log-open-btn {
+  border: 1px solid #35506c;
+  background: #13263b;
+  color: #b8d2ee;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #4a7097;
+    color: #e5f2ff;
+  }
+}
+
+// ── Trade Signal header mini split indicator ──────────────────────────────
+
+.signal-split-mini {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.signal-split-mini__sell { color: #ef5350; }
+.signal-split-mini__sep  { color: #484f58; }
+.signal-split-mini__buy  { color: #26a69a; }
+
+// ── Trade Signal card body ────────────────────────────────────────────────
+
+.signal-split-bar {
+  display: flex;
+  height: 36px;
+  margin-bottom: 10px;
+  gap: 0;
+}
+
+.signal-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 2px;
+  border: 1px solid #2a3e54;
+  border-radius: 6px;
+  background: #111d2b;
+}
+
+.signal-mode-toggle__btn {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #8fb0d3;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  cursor: pointer;
+
+  &--active {
+    border-color: #5382af;
+    background: #1a3148;
+    color: #e8f3ff;
+  }
+}
+
+.signal-telemetry {
+  border: 1px solid #27405a;
+  background: rgba(14, 30, 45, 0.6);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.signal-telemetry__line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+  line-height: 1.4;
+
+  & + & {
+    margin-top: 3px;
+  }
+}
+
+.signal-telemetry__label {
+  color: #7ea0c2;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.signal-telemetry__value {
+  color: #d3e8ff;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.signal-telemetry__sep {
+  color: #57799a;
+}
+
+.signal-split-bar__half {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+
+  &--sell {
+    border-radius: 3px 0 0 3px;
+    &.signal-split-bar__half--alert { animation: flash-border-sell 0.45s ease-in-out infinite; }
+  }
+
+  &--buy {
+    border-radius: 0 3px 3px 0;
+    &.signal-split-bar__half--alert { animation: flash-border-buy 0.45s ease-in-out infinite; }
+  }
+}
+
+.signal-split-bar__track {
+  flex: 1;
+  height: 10px;
+  background: #21262d;
+  border-radius: 5px;
+  position: relative;
+  overflow: hidden;
+}
+
+.signal-split-bar__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 5px;
+  transition: width 0.35s ease;
+
+  &--sell {
+    right: 0;
+    background: linear-gradient(90deg, #ff7b72, #ef5350);
+  }
+
+  &--buy {
+    left: 0;
+    background: linear-gradient(90deg, #26a69a, #56d364);
+  }
+}
+
+.signal-split-bar__divider {
+  width: 2px;
+  background: #484f58;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+.signal-split-bar__side-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #484f58;
+  flex-shrink: 0;
+}
+
+.signal-split-bar__pct {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Courier New', Courier, monospace;
+  color: #c9d1d9;
+  flex-shrink: 0;
+  min-width: 30px;
+}
+
+@keyframes flash-border-sell {
+  0%, 100% { border-color: #ef5350; box-shadow: 0 0 8px rgba(239, 83, 80, 0.5); }
+  50%       { border-color: transparent; box-shadow: none; }
+}
+
+@keyframes flash-border-buy {
+  0%, 100% { border-color: #26a69a; box-shadow: 0 0 8px rgba(38, 166, 154, 0.5); }
+  50%       { border-color: transparent; box-shadow: none; }
+}
+
+.signal-warning {
+  font-size: 11px;
+  color: #e3b341;
+  background: #3d2800;
+  border: 1px solid #9e6a03;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+}
+
+.signal-levels {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.signal-level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.signal-level--fast-preview {
+  min-width: 250px;
+  padding: 4px 8px;
+  border: 1px dashed #35506c;
+  border-radius: 6px;
+  background: rgba(19, 38, 59, 0.45);
+}
+
+.signal-level__label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #484f58;
+}
+
+.signal-level__value {
+  font-size: 11px;
+  color: #c9d1d9;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.signal-reasons {
+  margin: 0;
+  padding: 0 0 0 14px;
+
+  li {
+    font-size: 10px;
+    color: #8b949e;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+  }
+}
+

@@ -299,11 +299,10 @@ async def get_event_cards(
         default="desc",
         description="Global backend sort direction.",
     ),
-    limit: int = Query(
-        default=24,
+    limit: int | None = Query(
+        default=None,
         ge=1,
-        le=100,
-        description="Number of event cards to return per page.",
+        description="Max event cards to return. Omit to return all cards for the category.",
     ),
     cursor: str | None = Query(
         default=None,

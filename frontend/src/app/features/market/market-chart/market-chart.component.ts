@@ -48,7 +48,7 @@ import {
 
 import type { CandlestickDTO } from '../market.service';
 
-export type ChartType = 'candlestick' | 'line' | 'auto';
+export type ChartType = 'candlestick' | 'line' | 'auto' | 'obv' | 'flow';
 
 /** Dark workstation palette. */
 const PALETTE = {
@@ -141,9 +141,10 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {  // ─�
     });
 
     // React to chart type changes — rebuild the price series.
+    // 'obv' and 'flow' are handled by their own components, not this one.
     effect(() => {
       const type = this.chartType();
-      if (this.chart) {
+      if (this.chart && type !== 'obv' && type !== 'flow') {
         const resolved = type === 'auto'
           ? this.detectChartType(untracked(() => this.candlesticks()))
           : type;
@@ -352,7 +353,8 @@ export class MarketChartComponent implements AfterViewInit, OnDestroy {  // ─�
     });
 
     const initType = this.chartType();
-    const resolvedType = initType === 'auto'
+    // 'obv' and 'flow' are handled by their own components — default to 'line' if somehow passed here.
+    const resolvedType = initType === 'auto' || initType === 'obv' || initType === 'flow'
       ? this.detectChartType(untracked(() => this.candlesticks()))
       : initType;
     this.applyChartType(resolvedType);

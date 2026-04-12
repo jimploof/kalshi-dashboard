@@ -13,6 +13,7 @@ Public methods:
   get_events()    — GET /events            (event list / discovery)
   get_event()     — GET /events/{ticker}   (single event detail)
   get_series()    — GET /series            (series list / navigation)
+    get_order_queue_positions() — GET /portfolio/orders/queue_positions
 
 All Kalshi REST access in the backend routes through this client.
 """
@@ -438,4 +439,38 @@ class KalshiRestClient:
         endpoint = f"/markets/{ticker}/orderbook"
         params: dict[str, int] = {"depth": depth}
         headers = self._auth_headers("GET", endpoint) if self.is_configured() else {}
+        return await self._tracked_get(endpoint, headers, params)
+
+    async def get_order_queue_positions(
+        self,
+        *,
+        market_tickers: str | None = None,
+        event_ticker: str | None = None,
+        subaccount: int = 0,
+    ) -> dict:
+        """
+        GET /portfolio/orders/queue_positions.
+
+        Returns queue positions for resting orders. Queue position represents
+        contracts ahead of each order under price-time priority.
+
+        Documented in Kalshi OpenAPI as:
+          /portfolio/orders/queue_positions
+          query params: market_tickers, event_ticker, subaccount
+
+        Raises:
+            httpx.HTTPStatusError: on non-2xx responses.
+            httpx.RequestError:    on network/timeout errors.
+        """
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
+
+        endpoint = "/portfolio/orders/queue_positions"
+        params: dict[str, str | int] = {"subaccount": subaccount}
+        if market_tickers:
+            params["market_tickers"] = market_tickers
+        if event_ticker:
+            params["event_ticker"] = event_ticker
+
+        headers = self._auth_headers("GET", endpoint)
         return await self._tracked_get(endpoint, headers, params)

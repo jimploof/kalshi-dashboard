@@ -22,9 +22,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["debug"])
 
 
+class ConnectivityStatus(BaseModel):
+    rest_url: str
+    rest_configured: bool
+    rest_status: str  # 'active', 'error', 'no_calls'
+    rest_last_call_at: str | None
+    rest_last_status_code: int | None
+    ws_url: str
+    ws_configured: bool
+    ws_connected: bool
+    ws_subscribed_tickers: list[str]
+    ws_frontend_clients: dict[str, int]
+
+
 class DebugStatusResponse(BaseModel):
     debug_mode: bool
     server_time_utc: str
+    connectivity: ConnectivityStatus | None
     event_card_refresh_in_progress: bool
     snapshot_metrics: dict[str, Any] | None
     recent_kalshi_calls: list[dict[str, Any]]
@@ -45,6 +59,7 @@ async def get_debug_status(request: Request, response: Response) -> DebugStatusR
         return DebugStatusResponse(
             debug_mode=False,
             server_time_utc=datetime.now(timezone.utc).isoformat(),
+            connectivity=None,
             event_card_refresh_in_progress=False,
             snapshot_metrics=None,
             recent_kalshi_calls=[],
@@ -55,11 +70,40 @@ async def get_debug_status(request: Request, response: Response) -> DebugStatusR
     debug_metrics = getattr(request.app.state, "debug_metrics", None)
     refresh_in_progress: bool = getattr(request.app.state, "event_card_refresh_in_progress", False)
 
+    # ── Build connectivity status ─────────────────────────────────────────
+    ws_manager = getattr(request.app.state, "ws_manager", None)
+    ws_info = ws_manager.connectivity_status() if ws_manager is not None else None
+
+    # Determine REST status from recent call history.
+    rest_status = "no_calls"
+    rest_last_call_at: str | None = None
+    rest_last_status_code: int | None = None
+    if debug_metrics is not None:
+        calls = debug_metrics.as_dict()["recent_kalshi_calls"]
+        if calls:
+            latest = calls[0]  # already sorted newest-first
+            rest_last_call_at = latest["finished_at"] or latest["started_at"]
+            rest_last_status_code = latest["status_code"]
+            rest_status = "active" if latest["error"] is None and latest["status_code"] == 200 else "error"
+
+    connectivity = ConnectivityStatus(
+        rest_url=settings.kalshi_api_base_url,
+        rest_configured=bool(settings.kalshi_api_key_id) and bool(settings.kalshi_private_key_path),
+        rest_status=rest_status,
+        rest_last_call_at=rest_last_call_at,
+        rest_last_status_code=rest_last_status_code,
+        ws_url=ws_info["url"] if ws_info else settings.kalshi_ws_url,
+        ws_configured=ws_info["configured"] if ws_info else False,
+        ws_connected=ws_info["connected"] if ws_info else False,
+        ws_subscribed_tickers=ws_info["subscribed_tickers"] if ws_info else [],
+        ws_frontend_clients=ws_info["frontend_clients"] if ws_info else {},
+    )
+
     if debug_metrics is None:
-        # debug_mode=true but metrics not initialised yet (very early startup)
         return DebugStatusResponse(
             debug_mode=True,
             server_time_utc=datetime.now(timezone.utc).isoformat(),
+            connectivity=connectivity,
             event_card_refresh_in_progress=refresh_in_progress,
             snapshot_metrics=None,
             recent_kalshi_calls=[],
@@ -73,6 +117,7 @@ async def get_debug_status(request: Request, response: Response) -> DebugStatusR
     return DebugStatusResponse(
         debug_mode=True,
         server_time_utc=datetime.now(timezone.utc).isoformat(),
+        connectivity=connectivity,
         event_card_refresh_in_progress=refresh_in_progress,
         snapshot_metrics=current_build.as_dict() if current_build is not None else None,
         recent_kalshi_calls=all_metrics["recent_kalshi_calls"],

@@ -1,0 +1,261 @@
+.signal-log-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(1, 6, 14, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.signal-log-modal {
+  width: min(1440px, 96vw);
+  max-height: 90vh;
+  border-radius: 8px;
+  border: 1px solid #2f3d4c;
+  background: #0d1623;
+  color: #c9d1d9;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 16px;
+    border-bottom: 1px solid #223042;
+    background: linear-gradient(180deg, #132033 0%, #0f1a2a 100%);
+  }
+
+  &__title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  &__subtitle {
+    font-size: 12px;
+    color: #7f92a7;
+    margin-top: 3px;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__mode-filter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__btn {
+    border: 1px solid #35506c;
+    background: #13263b;
+    color: #b8d2ee;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+
+    &:hover {
+      border-color: #4a7097;
+      color: #e5f2ff;
+    }
+
+    &--close {
+      border-color: #5b2b38;
+      background: #2a1620;
+      color: #ffb7c6;
+    }
+
+    &--active {
+      border-color: #6da4dc;
+      color: #e6f3ff;
+      background: #18314a;
+    }
+  }
+}
+
+.signal-log-state {
+  padding: 20px;
+  font-size: 13px;
+  color: #8ba3be;
+
+  &--error {
+    color: #ff7b72;
+  }
+}
+
+.signal-log-table-wrap {
+  overflow: auto;
+}
+
+.signal-log-table-title {
+  font-size: 11px;
+  color: #8fb0d3;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 10px 10px 6px;
+}
+
+.signal-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1050px;
+
+  thead th {
+    position: sticky;
+    top: 0;
+    background: #101d2d;
+    z-index: 1;
+    text-align: left;
+    font-size: 11px;
+    color: #87a2bf;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid #223042;
+    padding: 9px 10px;
+    white-space: nowrap;
+  }
+
+  tbody td {
+    border-bottom: 1px solid #1a2839;
+    padding: 8px 10px;
+    font-size: 12px;
+    vertical-align: top;
+  }
+
+  tbody tr:hover {
+    background: rgba(86, 157, 255, 0.05);
+  }
+}
+
+.dir-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+
+  &--buy {
+    color: #56d364;
+    background: rgba(86, 211, 100, 0.12);
+    border: 1px solid rgba(86, 211, 100, 0.35);
+  }
+
+  &--sell {
+    color: #ff7b72;
+    background: rgba(255, 123, 114, 0.12);
+    border: 1px solid rgba(255, 123, 114, 0.35);
+  }
+
+  &--wait {
+    color: #8b949e;
+    background: rgba(139, 148, 158, 0.12);
+    border: 1px solid rgba(139, 148, 158, 0.35);
+  }
+}
+
+.signal-log-row-btn {
+  border: 1px solid #3b556f;
+  background: #122136;
+  color: #9fc3ea;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.signal-log-expanded-row td {
+  background: rgba(14, 25, 39, 0.95);
+}
+
+.signal-log-expanded-grid {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.7fr) 1fr 1fr;
+  gap: 12px;
+}
+
+.signal-log-expanded-card {
+  border: 1px solid #223449;
+  border-radius: 6px;
+  background: #101d2d;
+  padding: 10px;
+}
+
+.signal-log-expanded-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8fb0d3;
+  margin-bottom: 6px;
+}
+
+.signal-log-kv {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 4px;
+
+  span:first-child {
+    color: #7d95ad;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+  }
+}
+
+.signal-log-json {
+  margin: 0;
+  max-height: 200px;
+  overflow: auto;
+  border: 1px solid #223449;
+  border-radius: 4px;
+  background: #0a1422;
+  padding: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #bdd8f3;
+  font-family: 'Courier New', Courier, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mono {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.entry {
+  min-width: 260px;
+}
+
+.text-buy {
+  color: #56d364;
+}
+
+.text-sell {
+  color: #ff7b72;
+}
+
+@media (max-width: 960px) {
+  .signal-log-modal {
+    width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .signal-log-expanded-grid {
+    grid-template-columns: 1fr;
+  }
+}

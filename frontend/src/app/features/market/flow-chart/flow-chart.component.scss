@@ -1,0 +1,126 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.flow-chart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.flow-chart__canvas {
+  flex: 1;
+  min-height: 0;
+  background: #0d1117;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
+}
+
+// ── Overlay (regime badge + zone + stats) ────────────────────────────────────
+
+.flow-chart__overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.regime-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  white-space: nowrap;
+
+  // Regime-specific colors
+  &--normal          { background: #374151; }
+  &--cliff_frozen    { background: #b91c1c; }
+  &--depth_wall      { background: #c2410c; }
+  &--blowout         { background: #b45309; }
+  &--contested_hot   { background: #0e7490; }
+}
+
+.zone-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #8b949e;
+  background: #161b22;
+  border: 1px solid #21262d;
+  white-space: nowrap;
+}
+
+.flow-stats {
+  font-size: 10px;
+  font-family: 'Roboto Mono', 'Fira Code', monospace;
+  color: #7d8590;
+  white-space: nowrap;
+}
+
+// ── Bottom legend ─────────────────────────────────────────────────────────────
+
+.flow-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 10px;
+  background: #161b22;
+  border-top: 1px solid #21262d;
+  border-radius: 0 0 4px 4px;
+  flex-shrink: 0;
+}
+
+.flow-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: #8b949e;
+  white-space: nowrap;
+  user-select: none;
+
+  &--bars {
+    color: #7d8590;
+    font-size: 9px;
+  }
+
+  &--zones {
+    color: #4a5568;
+    font-size: 9px;
+  }
+
+  &--depth {
+    gap: 4px;
+  }
+}
+
+.flow-legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 1px;
+  flex-shrink: 0;
+
+  &--bull  { background: #26a69a; }
+  &--bear  { background: #ef5350; }
+  &--yes   { background: #26a69a; }
+  &--no    { background: #ef5350; }
+}

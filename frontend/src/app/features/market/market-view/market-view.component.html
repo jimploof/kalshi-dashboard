@@ -56,6 +56,14 @@
       </span>
     </div>
 
+    <!-- ── Market Analytics (collapsible) ─────────────────────────────── -->
+    <div class="section-panel">
+      <button class="section-panel__toggle" type="button" (click)="expandedAnalytics.set(!expandedAnalytics())">
+        <span class="section-panel__label">Market Analytics</span>
+        <span class="section-panel__chevron">{{ expandedAnalytics() ? '▾' : '▸' }}</span>
+      </button>
+      @if (expandedAnalytics()) {
+        <div class="section-panel__body">
     <div class="market-view__analytics-grid">
       <div class="analytics-card">
         <div class="analytics-card__title">Orderbook Imbalance<button class="analytics-card__help-btn" type="button" (click)="openHelp('imbalance')" aria-label="Orderbook Imbalance help">?</button></div>
@@ -115,10 +123,149 @@
         <div class="analytics-card__row"><span class="muted">Large Wicks</span><span class="mono">{{ formatPct(candleQuality().largeWickPct) }}</span></div>
         <div class="analytics-card__row"><span class="muted">Open Gaps</span><span class="mono">{{ candleQuality().gapCount }}</span></div>
       </div>
+
+      <div class="analytics-card">
+        <div class="analytics-card__title">RSI (14)<button class="analytics-card__help-btn" type="button" (click)="openHelp('rsi')" aria-label="RSI help">?</button></div>
+        <div class="analytics-card__row">
+          <span class="muted">RSI 14</span>
+          <span class="mono">{{ rsi14() !== null ? (rsi14()! | number:'1.1-1') : '—' }}</span>
+        </div>
+        <div class="analytics-card__row">
+          <span class="muted">Zone</span>
+          <span class="mono" [class.text-buy]="(rsi14() ?? 50) < 35" [class.text-sell]="(rsi14() ?? 50) > 65">{{ rsi14() === null ? '—' : (rsi14()! < 30 ? 'Oversold' : rsi14()! > 70 ? 'Overbought' : 'Neutral') }}</span>
+        </div>
+      </div>
+    </div>
+        </div>
+      }
+    </div>
+
+    <!-- ── Trade Signal (collapsible) ───────────────────────────────────── -->
+    <div class="section-panel section-panel--signal"
+         [class.section-panel--buy]="activeTradeSignal().direction === 'BUY'"
+         [class.section-panel--sell]="activeTradeSignal().direction === 'SELL'">
+      <button class="section-panel__toggle" type="button" (click)="expandedSignal.set(!expandedSignal())">
+        <span class="section-panel__label">Trade Signal</span>
+        <span class="signal-mode-chip signal-mode-chip--{{ activeSignalMode() }}">{{ activeSignalMode() === 'strict' ? 'Strict' : activeSignalMode() === 'loose' ? 'Loosened' : 'Open' }}</span>
+        <span class="signal-direction-badge signal-direction-badge--{{ activeTradeSignal().direction.toLowerCase() }}">{{ activeTradeSignal().direction === 'BUY' ? '↑ BUY' : activeTradeSignal().direction === 'SELL' ? '↓ SELL' : '— WAIT' }}</span>
+        <span class="signal-split-mini">
+          <span class="signal-split-mini__sell">&#x2193;{{ activeTradeSignal().sellScore }}%</span>
+          <span class="signal-split-mini__sep">|</span>
+          <span class="signal-split-mini__buy">{{ activeTradeSignal().buyScore }}%&#x2191;</span>
+        </span>
+        <button class="signal-log-open-btn" type="button" (click)="$event.stopPropagation(); openSignalLog()">History</button>
+        <button class="analytics-card__help-btn" type="button" (click)="$event.stopPropagation(); openHelp('signal')" aria-label="Trade Signal help">?</button>
+        <span class="section-panel__chevron">{{ expandedSignal() ? '▾' : '▸' }}</span>
+      </button>
+      @if (expandedSignal()) {
+        <div class="section-panel__body">
+          <div class="signal-mode-toggle" role="group" aria-label="Signal mode selector">
+            <button
+              class="signal-mode-toggle__btn"
+              [class.signal-mode-toggle__btn--active]="activeSignalMode() === 'strict'"
+              type="button"
+              (click)="setActiveSignalMode('strict')"
+            >Strict</button>
+            <button
+              class="signal-mode-toggle__btn"
+              [class.signal-mode-toggle__btn--active]="activeSignalMode() === 'loose'"
+              type="button"
+              (click)="setActiveSignalMode('loose')"
+            >Loosened</button>
+            <button
+              class="signal-mode-toggle__btn"
+              [class.signal-mode-toggle__btn--active]="activeSignalMode() === 'open'"
+              type="button"
+              (click)="setActiveSignalMode('open')"
+            >Open</button>
+          </div>
+          <div class="signal-telemetry">
+            <div class="signal-telemetry__line">
+              <span class="signal-telemetry__label">Window</span>
+              <span class="signal-telemetry__value">{{ signalTelemetryStats().windowSize }} ticks</span>
+              <span class="signal-telemetry__sep">·</span>
+              <span class="signal-telemetry__label">Avg BUY</span>
+              <span class="signal-telemetry__value">Strict {{ signalTelemetryStats().strictAvgBuy ?? '—' }}% | Loosened {{ signalTelemetryStats().looseAvgBuy ?? '—' }}% | Open {{ signalTelemetryStats().openAvgBuy ?? '—' }}%</span>
+              <span class="signal-telemetry__sep">·</span>
+              <span class="signal-telemetry__label">Delta</span>
+              <span class="signal-telemetry__value" [class.text-buy]="(signalTelemetryStats().avgDelta ?? 0) > 0" [class.text-sell]="(signalTelemetryStats().avgDelta ?? 0) < 0">
+                L-S {{ formatSigned(signalTelemetryStats().avgDelta, '%') }} | O-S {{ formatSigned(signalTelemetryStats().openDelta, '%') }}
+              </span>
+            </div>
+            <div class="signal-telemetry__line">
+              <span class="signal-telemetry__label">BUY Trigger Rate</span>
+              <span class="signal-telemetry__value">Strict {{ signalTelemetryStats().strictBuyPct ?? '—' }}% | Loosened {{ signalTelemetryStats().looseBuyPct ?? '—' }}% | Open {{ signalTelemetryStats().openBuyPct ?? '—' }}%</span>
+            </div>
+          </div>
+          <div class="signal-split-bar">
+            <div class="signal-split-bar__half signal-split-bar__half--sell"
+                 [class.signal-split-bar__half--alert]="activeTradeSignal().sellScore >= 80">
+              <span class="signal-split-bar__side-label">SELL</span>
+              <div class="signal-split-bar__track">
+                <div class="signal-split-bar__fill signal-split-bar__fill--sell"
+                     [style.width.%]="activeTradeSignal().sellScore"></div>
+              </div>
+              <span class="signal-split-bar__pct">{{ activeTradeSignal().sellScore }}%</span>
+            </div>
+            <div class="signal-split-bar__divider"></div>
+            <div class="signal-split-bar__half signal-split-bar__half--buy"
+                 [class.signal-split-bar__half--alert]="activeTradeSignal().buyScore >= 80">
+              <span class="signal-split-bar__pct">{{ activeTradeSignal().buyScore }}%</span>
+              <div class="signal-split-bar__track">
+                <div class="signal-split-bar__fill signal-split-bar__fill--buy"
+                     [style.width.%]="activeTradeSignal().buyScore"></div>
+              </div>
+              <span class="signal-split-bar__side-label">BUY</span>
+            </div>
+          </div>
+          @if (!activeTradeSignal().tradeable) {
+            <div class="signal-warning">⚠ Spread above P90 — consider limit orders</div>
+          }
+          <div class="signal-levels">
+            <div class="signal-level">
+              <span class="signal-level__label">Entry</span>
+              <span class="signal-level__value">{{ activeTradeSignal().entryNote }}</span>
+            </div>
+            <div class="signal-level">
+              <span class="signal-level__label">Stop ref</span>
+              <span class="signal-level__value">{{ activeTradeSignal().stopNote }}</span>
+            </div>
+            <div class="signal-level">
+              <span class="signal-level__label">Target</span>
+              <span class="signal-level__value">{{ activeTradeSignal().targetNote }}</span>
+            </div>
+            <div class="signal-level signal-level--fast-preview">
+              <span class="signal-level__label">{{ activeSignalMode() === 'strict' ? 'Loosened Preview' : activeSignalMode() === 'loose' ? 'Strict Preview' : 'Loosened Preview' }}</span>
+              <span class="signal-level__value">
+                {{ inactiveTradeSignal().direction }} · Buy {{ inactiveTradeSignal().buyScore }}% · Sell {{ inactiveTradeSignal().sellScore }}%
+              </span>
+            </div>
+          </div>
+          <ul class="signal-reasons">
+            @for (reason of activeTradeSignal().reasons; track reason) {
+              <li>{{ reason }}</li>
+            }
+          </ul>
+        </div>
+      }
     </div>
 
     @if (activeHelpCard()) {
       <app-analytics-help-modal [cardKey]="$any(activeHelpCard())" (close)="closeHelp()" />
+    }
+
+    @if (signalLogOpen()) {
+      <app-signal-log-modal
+        [events]="signalLogEvents()"
+        [lifecycleEvents]="signalLifecycleEvents()"
+        [modeFilter]="signalLogModeFilter()"
+        [loading]="signalLogLoading()"
+        [error]="signalLogError()"
+        [marketTicker]="market()?.ticker ?? null"
+        (refreshRequested)="openSignalLog()"
+        (modeFilterChanged)="setSignalLogModeFilter($event)"
+        (closed)="closeSignalLog()"
+      />
     }
   }
 
@@ -184,6 +331,18 @@
                 type="button"
                 (click)="setChartType('line')"
               >Line</button>
+              <button
+                class="chart-toolbar__btn"
+                [class.active]="chartType() === 'obv'"
+                type="button"
+                (click)="setChartType('obv')"
+              >OBV</button>
+              <button
+                class="chart-toolbar__btn"
+                [class.active]="chartType() === 'flow'"
+                type="button"
+                (click)="setChartType('flow')"
+              >Flow</button>
             }
           </div>
           <div class="chart-toolbar__zoom">
@@ -238,14 +397,32 @@
               [periodInterval]="periodInterval()"
               [zoomPercent]="zoomPercent()"
             />
+          } @else if (chartType() === 'obv') {
+            <app-obv-chart
+              [candlesticks]="signalCandlesForSignal()"
+              [periodInterval]="periodInterval()"
+              [zoomPercent]="zoomPercent()"
+            />
+          } @else if (chartType() === 'flow') {
+            <app-flow-chart
+              [trades]="wsService.trades()"
+              [candlesticks]="signalCandlesForSignal()"
+              [yesBids]="wsService.yesBids()"
+              [noBids]="wsService.noBids()"
+              [livePrice]="wsService.lastPrice()"
+              [liveTick]="wsService.tickerPulse()"
+              [yesBid]="displayBid()"
+              [yesAsk]="displayAsk()"
+              [zoomPercent]="zoomPercent()"
+            />
           } @else {
             <app-market-chart
-            [candlesticks]="candlesticks()"
+            [candlesticks]="signalCandlesForSignal()"
             [yesBid]="displayBid()"
             [yesAsk]="displayAsk()"
             [chartType]="chartType()"
-            [livePrice]="wsService.lastPrice()"
-            [liveTick]="wsService.tickerPulse()"
+            [livePrice]="null"
+            [liveTick]="0"
             [periodInterval]="periodInterval()"
             [zoomPercent]="zoomPercent()"
             [showEma]="showEma()"

@@ -25,7 +25,7 @@ import logging
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from app.dependencies import KalshiClientDep
@@ -98,6 +98,26 @@ class OrderbookResponse(BaseModel):
     ticker: str
     yes: list[OrderbookLevelDTO]
     no: list[OrderbookLevelDTO]
+
+
+class QueuePositionDTO(BaseModel):
+    """Queue position for a single resting order."""
+
+    order_id: str
+    market_ticker: str
+    queue_position_fp: float
+
+
+class QueuePositionsResponse(BaseModel):
+    """Response for GET /api/market/{ticker}/queue_positions."""
+
+    status: Literal["success", "upstream_failure"]
+    ticker: str
+    order_count: int
+    avg_queue_position_fp: float | None = None
+    max_queue_position_fp: float | None = None
+    total_queue_position_fp: float | None = None
+    queue_positions: list[QueuePositionDTO]
 
 
 # ---------------------------------------------------------------------------
@@ -281,6 +301,82 @@ async def get_market_orderbook(
         ticker=ticker,
         yes=yes_levels,
         no=no_levels,
+    )
+
+
+# ---------------------------------------------------------------------------
+# REST: GET /api/market/{ticker}/queue_positions
+# ---------------------------------------------------------------------------
+
+
+@router_rest.get(
+    "/market/{ticker}/queue_positions",
+    response_model=QueuePositionsResponse,
+)
+async def get_market_queue_positions(
+    ticker: str,
+    client: KalshiClientDep,
+    subaccount: int = Query(0, ge=0, le=32, description="Subaccount number"),
+) -> QueuePositionsResponse:
+    """Return queue positions for resting orders on this market.
+
+    Uses Kalshi's authenticated ``GET /portfolio/orders/queue_positions`` endpoint
+    and filters by market ticker.
+    """
+    try:
+        raw = await client.get_order_queue_positions(
+            market_tickers=ticker,
+            subaccount=subaccount,
+        )
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Kalshi queue position HTTP error for %s: %s", ticker, exc)
+        return QueuePositionsResponse(
+            status="upstream_failure",
+            ticker=ticker,
+            order_count=0,
+            queue_positions=[],
+        )
+    except httpx.RequestError as exc:
+        logger.warning("Kalshi queue position request error for %s: %s", ticker, exc)
+        return QueuePositionsResponse(
+            status="upstream_failure",
+            ticker=ticker,
+            order_count=0,
+            queue_positions=[],
+        )
+
+    rows: list[dict] = raw.get("queue_positions") or []
+    queue_positions: list[QueuePositionDTO] = []
+    for row in rows:
+        try:
+            queue_positions.append(
+                QueuePositionDTO(
+                    order_id=str(row.get("order_id") or ""),
+                    market_ticker=str(row.get("market_ticker") or ticker),
+                    queue_position_fp=float(row.get("queue_position_fp") or 0),
+                )
+            )
+        except (TypeError, ValueError):
+            continue
+
+    if not queue_positions:
+        return QueuePositionsResponse(
+            status="success",
+            ticker=ticker,
+            order_count=0,
+            queue_positions=[],
+        )
+
+    vals = [q.queue_position_fp for q in queue_positions]
+    total = sum(vals)
+    return QueuePositionsResponse(
+        status="success",
+        ticker=ticker,
+        order_count=len(queue_positions),
+        avg_queue_position_fp=total / len(vals),
+        max_queue_position_fp=max(vals),
+        total_queue_position_fp=total,
+        queue_positions=queue_positions,
     )
 
 
@@ -483,7 +579,6 @@ async def get_event_candlesticks(
 async def market_ws_endpoint(
     ticker: str,
     websocket: WebSocket,
-    request: Request,
 ) -> None:
     """Live market data WebSocket proxy.
 
@@ -502,7 +597,7 @@ async def market_ws_endpoint(
     """
     await websocket.accept()
 
-    ws_manager = getattr(request.app.state, "ws_manager", None)
+    ws_manager = getattr(websocket.app.state, "ws_manager", None)
     if ws_manager is None:
         await websocket.send_json({"type": "error", "msg": "WS manager not initialised"})
         await websocket.close(code=1011)

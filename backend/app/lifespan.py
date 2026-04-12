@@ -13,6 +13,7 @@ from app.services.catalog.event_card_snapshot import build_event_card_snapshot
 from app.services.kalshi.rate_limiter import RateLimiter
 from app.services.kalshi.rest_client import KalshiRestClient
 from app.services.kalshi.ws_manager import KalshiWsManager
+from app.services.signal_events.store import ensure_signal_events_schema
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             min_size=1,
             max_size=5,
         )
+        await ensure_signal_events_schema(app.state.pg_pool)
         app.state.pg_ready = True
-        logger.info("PostgreSQL connection pool ready.")
+        logger.info("PostgreSQL connection pool ready (signal events schema ensured).")
     except Exception as exc:
         logger.error("Failed to connect to PostgreSQL: %s", exc)
         raise

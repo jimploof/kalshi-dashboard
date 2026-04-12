@@ -1,0 +1,152 @@
+<div class="signal-log-backdrop" (click)="close()">
+  <div class="signal-log-modal" (click)="$event.stopPropagation()">
+    <div class="signal-log-modal__header">
+      <div>
+        <div class="signal-log-modal__title">Signal Trigger History</div>
+        <div class="signal-log-modal__subtitle">
+          @if (marketTicker) {
+            Market: {{ marketTicker }}
+          } @else {
+            All markets
+          }
+        </div>
+      </div>
+      <div class="signal-log-modal__mode-filter" role="group" aria-label="Signal mode filter">
+        <button
+          class="signal-log-modal__btn"
+          [class.signal-log-modal__btn--active]="modeFilter === 'all'"
+          type="button"
+          (click)="setModeFilter('all')"
+        >All</button>
+        <button
+          class="signal-log-modal__btn"
+          [class.signal-log-modal__btn--active]="modeFilter === 'strict'"
+          type="button"
+          (click)="setModeFilter('strict')"
+        >Strict</button>
+        <button
+          class="signal-log-modal__btn"
+          [class.signal-log-modal__btn--active]="modeFilter === 'fast'"
+          type="button"
+          (click)="setModeFilter('fast')"
+        >Fast</button>
+        <button
+          class="signal-log-modal__btn"
+          [class.signal-log-modal__btn--active]="modeFilter === 'open'"
+          type="button"
+          (click)="setModeFilter('open')"
+        >Open</button>
+      </div>
+      <div class="signal-log-modal__actions">
+        <button class="signal-log-modal__btn" type="button" (click)="refresh()">Refresh</button>
+        <button class="signal-log-modal__btn signal-log-modal__btn--close" type="button" (click)="close()">Close</button>
+      </div>
+    </div>
+
+    @if (loading) {
+      <div class="signal-log-state">Loading signal history…</div>
+    } @else if (error) {
+      <div class="signal-log-state signal-log-state--error">{{ error }}</div>
+    } @else if (!events.length) {
+      <div class="signal-log-state">No signal events recorded yet.</div>
+    } @else {
+      <div class="signal-log-table-wrap">
+        <div class="signal-log-table-title">Signal Events</div>
+        <table class="signal-log-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Market</th>
+              <th>Mode</th>
+              <th>Dir</th>
+              <th>Sell%</th>
+              <th>Buy%</th>
+              <th>Conf%</th>
+              <th>Entry</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (evt of events; track evt.id) {
+              <tr>
+                <td class="mono">{{ formatTimestamp(evt.created_at) }}</td>
+                <td class="mono">{{ evt.market_ticker }}</td>
+                <td class="mono">{{ evt.mode }}</td>
+                <td>
+                  <span class="dir-badge dir-badge--{{ evt.signal_direction.toLowerCase() }}">{{ evt.signal_direction }}</span>
+                </td>
+                <td class="mono text-sell">{{ evt.sell_score }}</td>
+                <td class="mono text-buy">{{ evt.buy_score }}</td>
+                <td class="mono">{{ evt.confidence }}</td>
+                <td class="entry">{{ evt.entry_note ?? '—' }}</td>
+                <td>
+                  <button class="signal-log-row-btn" type="button" (click)="toggleExpanded(evt.id)">
+                    {{ isExpanded(evt.id) ? 'Hide' : 'Expand' }}
+                  </button>
+                </td>
+              </tr>
+              @if (isExpanded(evt.id)) {
+                <tr class="signal-log-expanded-row">
+                  <td colspan="8">
+                    <div class="signal-log-expanded-grid">
+                      <div class="signal-log-expanded-card">
+                        <div class="signal-log-expanded-title">Stops / Targets</div>
+                        <div class="signal-log-kv"><span>Stop</span><span>{{ evt.stop_note ?? '—' }}</span></div>
+                        <div class="signal-log-kv"><span>Target</span><span>{{ evt.target_note ?? '—' }}</span></div>
+                        <div class="signal-log-kv"><span>Source</span><span class="mono">{{ evt.source }}</span></div>
+                      </div>
+
+                      <div class="signal-log-expanded-card">
+                        <div class="signal-log-expanded-title">Conditions Met</div>
+                        <pre class="signal-log-json">{{ prettyJson(evt.conditions_met) }}</pre>
+                      </div>
+
+                      <div class="signal-log-expanded-card">
+                        <div class="signal-log-expanded-title">Diagnostics</div>
+                        <pre class="signal-log-json">{{ prettyJson(evt.diagnostics) }}</pre>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+
+        <div class="signal-log-table-title">Lifecycle Events</div>
+        @if (!lifecycleEvents.length) {
+          <div class="signal-log-state">No lifecycle events recorded yet.</div>
+        } @else {
+          <table class="signal-log-table signal-log-table--lifecycle">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Market</th>
+                <th>Mode</th>
+                <th>State</th>
+                <th>Signal</th>
+                <th>Pos</th>
+                <th>Price</th>
+                <th>Elapsed ms</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (evt of lifecycleEvents; track evt.id) {
+                <tr>
+                  <td class="mono">{{ formatTimestamp(evt.created_at) }}</td>
+                  <td class="mono">{{ evt.market_ticker }}</td>
+                  <td class="mono">{{ evt.mode }}</td>
+                  <td class="mono">{{ evt.lifecycle_state }}</td>
+                  <td class="mono">{{ evt.signal_direction ?? '—' }}</td>
+                  <td class="mono">{{ evt.position_side }}</td>
+                  <td class="mono">{{ evt.trigger_price_cents ?? '—' }}</td>
+                  <td class="mono">{{ evt.elapsed_ms ?? '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+  </div>
+</div>

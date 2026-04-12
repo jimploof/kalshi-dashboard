@@ -45,9 +45,11 @@ def sort_cards(
 def page_cards(
     cards: list[EventCardSummaryDTO],
     offset: int,
-    limit: int,
+    limit: int | None,
 ) -> tuple[list[EventCardSummaryDTO], int | None, int]:
     total = len(cards)
+    if limit is None:
+        return cards[offset:], None, total
     page = cards[offset: offset + limit]
     next_offset = offset + limit
     return page, (next_offset if next_offset < total else None), total

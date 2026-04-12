@@ -13,7 +13,9 @@ export type HelpCardKey =
   | 'depth'
   | 'dispersion'
   | 'intraday'
-  | 'candle';
+  | 'candle'
+  | 'rsi'
+  | 'signal';
 
 type RowHelp = { label: string; meaning: string };
 
@@ -280,6 +282,108 @@ const HELP: Record<HelpCardKey, HelpEntry> = {
         meaning:
           'Count of bars that opened more than 1¢ away from the prior close. Marks ' +
           'news-event or resolution-driven price jumps.',
+      },
+    ],
+  },
+
+  rsi: {
+    title: 'RSI (14)',
+    what:
+      'The Relative Strength Index measures the speed and magnitude of recent price ' +
+      'changes on a 0–100 scale. It divides average gains over bullish bars by average ' +
+      'losses over bearish bars using a 14-candle Wilder smoothing window. ' +
+      'Values below 30 signal that the price has fallen sharply relative to recent history; ' +
+      'values above 70 signal it has risen sharply.',
+    timing:
+      'Per-candle close. Updates once when each candle finalizes—same cadence as the EMA. ' +
+      'On a 1-min chart it refreshes every minute. Does not react to live order-book ' +
+      'changes between closes. Requires at least 15 bars of history to produce a value.',
+    howToUse:
+      'RSI < 30 (Oversold): the price has fallen hard and fast — potential bounce, ' +
+      'look for a green candle at support as a YES entry trigger. ' +
+      'RSI > 70 (Overbought): the price has rallied sharply — potential reversal, reduce ' +
+      'YES exposure or look for a NO entry at resistance. ' +
+      '30–70 is neutral. Most powerful combined with other signals: oversold RSI at ' +
+      'support = strong YES setup; overbought RSI at resistance = quality exit.',
+    rows: [
+      {
+        label: 'RSI 14',
+        meaning:
+          'Current RSI value (0–100). Below 30 = oversold (bullish lean). ' +
+          'Above 70 = overbought (bearish lean). Shows — until ≥15 bars are loaded.',
+      },
+      {
+        label: 'Zone',
+        meaning:
+          'Oversold (<30, green), Neutral (30–70, grey), or Overbought (>70, red). ' +
+          'Zone color matches the text-buy / text-sell convention used throughout the workstation.',
+      },
+    ],
+  },
+
+  signal: {
+    title: 'Trade Signal',
+    what:
+      'A composite dip-buy timing score (0–100) derived from six dimensions: ' +
+      'RSI exhaustion, EMA distance, Stochastic %K, microprice pressure, tape ' +
+      'flow recovery, and orderbook imbalance rebuild. ' +
+      'The model is designed to score HIGH only when a downward move is exhausted ' +
+      'and reversal evidence is starting to accumulate — not during normal uptrends. ' +
+      'A cliff abort gate fires first: if the price is accelerating down with rising volume, ' +
+      'it returns SELL/12% immediately regardless of RSI.',
+    timing:
+      'Near-real-time composite. The cliff gate, pressure, and imbalance components update ' +
+      'at sub-second speed with every order-book change. Tape flow updates with each trade. ' +
+      'RSI, EMA, and Stochastic update per-candle close. ' +
+      'Treat the signal as a persistent lean over 5–10 second windows. ' +
+      'It will be quiet (WAIT/SELL) most of the time by design — that is correct behaviour.',
+    howToUse:
+      'The signal is intentionally selective. Expect it to show SELL or WAIT the vast majority ' +
+      'of the time. BUY fires only when: (1) RSI and/or Stochastic are in the oversold zone, ' +
+      '(2) price is below EMA, AND (3) at least one live reversal signal (pressure flip, ' +
+      'YES tape re-entry, bid accumulation, or hammer wick) confirms the turn. ' +
+      'When BUY fires: enter at Ask, set a mental stop below EMA. ' +
+      'When SELL fires and you hold YES: consider trimming. ' +
+      '"Oversold but no reversal yet" means the price has fallen far enough but sellers ' +
+      'are still active — wait for the book/tape flip before entering.',
+    rows: [
+      {
+        label: 'RSI Exhaustion',
+        meaning:
+          'Max +35, min −15 pts. RSI <20 = extreme oversold = 35 pts. ' +
+          'RSI >60 = overbought = penalty (−5 to −15 pts). ' +
+          'This is the primary driver — it identifies when sell-side momentum is spent.',
+      },
+      {
+        label: 'EMA Distance',
+        meaning:
+          'Max +25, min −15 pts. Price stretched below EMA scores higher. ' +
+          'Price well above EMA = penalty. Measures mean-reversion potential.',
+      },
+      {
+        label: 'Stochastic %K',
+        meaning:
+          'Max +15 pts. Price at the low of its recent cycle range = 15 pts. ' +
+          'Provides independent confirmation of exhaustion based on price location, ' +
+          'not momentum.',
+      },
+      {
+        label: 'Pressure flip',
+        meaning:
+          'Max +20 pts. Microprice turning positive (buyers at mid) = confirmation ' +
+          'that selling is drying up. Heavy negative pressure = 0 pts.',
+      },
+      {
+        label: 'Tape Flow',
+        meaning:
+          'Max +15 pts. YES buyer re-entry in the last 80 trades = accumulation signal. ' +
+          'NO seller dominance = 0 pts.',
+      },
+      {
+        label: 'OB Imbalance',
+        meaning:
+          'Max +15 pts. Bids rebuilding at low prices = smart-money bottom signal. ' +
+          'Ask-heavy = 0 pts (distribution still active).',
       },
     ],
   },

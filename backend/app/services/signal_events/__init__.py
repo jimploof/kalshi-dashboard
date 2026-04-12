@@ -1,0 +1,1 @@
+"""Signal event persistence helpers."""

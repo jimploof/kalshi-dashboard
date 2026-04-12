@@ -1,0 +1,32 @@
+<div class="flow-chart">
+  <div class="flow-chart__overlay">
+    <span class="regime-badge regime-badge--{{ currentRegime().toLowerCase() }}">
+      {{ currentRegime() }}
+    </span>
+    <span class="zone-badge">{{ priceZone() }}</span>
+    <span class="flow-stats">
+      Depth {{ formatDepth(currentDepthRatio()) }}
+      &middot; Spread {{ formatSpread(currentSpread()) }}
+      &middot; ATR {{ formatAtr(currentAtrRatio()) }}
+    </span>
+  </div>
+  <div #chartContainer class="flow-chart__canvas"></div>
+  <div class="flow-chart__legend">
+    <span class="flow-legend-item">
+      <span class="flow-legend-swatch flow-legend-swatch--bull"></span>BUY bar
+    </span>
+    <span class="flow-legend-item">
+      <span class="flow-legend-swatch flow-legend-swatch--bear"></span>SELL bar
+    </span>
+    <span class="flow-legend-item flow-legend-item--bars">
+      10s bars &middot; {{ closedBarCount() }} closed
+    </span>
+    <span class="flow-legend-item flow-legend-item--zones">
+      Zones: 8 · 18 · 35 · 65 · 82 · 92¢
+    </span>
+    <span class="flow-legend-item flow-legend-item--depth">
+      <span class="flow-legend-swatch flow-legend-swatch--yes"></span>YES depth
+      <span class="flow-legend-swatch flow-legend-swatch--no"></span>NO depth
+    </span>
+  </div>
+</div>
